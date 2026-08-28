@@ -2645,7 +2645,26 @@ async function renderPdfBlobToPages(blob,targetId){
     }
   }catch(e){
     console.error(e);
-    wrap.innerHTML='<div class="resource-fallback">PDF 바로보기를 불러오지 못했습니다.<br>아래의 새 창 열기를 이용해 주세요.</div>';
+    wrap.innerHTML='<div class="resource-fallback">PDF 바로보기를 불러오지 못했습니다.</div>';
+  }
+}
+
+function useMobilePdfRenderer(){
+  return window.matchMedia('(max-width: 768px)').matches || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
+async function renderPdfUrlToPages(url,targetId){
+  const wrap=document.getElementById(targetId);
+  if(!wrap)return;
+  wrap.innerHTML='<div class="notice">PDF를 불러오는 중입니다.</div>';
+  try{
+    const response=await fetch(url,{method:'GET',mode:'cors',credentials:'omit',cache:'no-store'});
+    if(!response.ok)throw new Error(`PDF fetch failed: ${response.status}`);
+    const blob=await response.blob();
+    await renderPdfBlobToPages(blob,targetId);
+  }catch(e){
+    console.error(e);
+    wrap.innerHTML='<div class="resource-fallback">PDF를 불러오지 못했습니다.</div>';
   }
 }
 
@@ -2678,8 +2697,16 @@ async function renderPublicResources(){
       if(!url){
         panel.innerHTML=header+`<div class="resource-fallback">파일 주소를 불러오지 못했습니다.</div>`;
       }else if(x.type==='pdf'){
-        panel.innerHTML=header+`<div class="resource-media-viewer"><iframe src="${url}" title="${x.title}" style="width:100%;height:620px;border:0;background:#fff"></iframe></div>
-        <a class="resource-direct-link" href="${url}" target="_blank" rel="noopener">PDF 새 창에서 열기</a>`;
+        if(useMobilePdfRenderer()){
+          const pdfTargetId=`mobilePdfPages${i}`;
+          panel.innerHTML=header+`<div id="${pdfTargetId}" class="pdf-render-wrap"><div class="notice">PDF를 불러오는 중입니다.</div></div>`;
+          panels.appendChild(panel);
+          renderPdfUrlToPages(url,pdfTargetId);
+          continue;
+        }else{
+          panel.innerHTML=header+`<div class="resource-media-viewer"><iframe src="${url}" title="${x.title}" style="width:100%;height:620px;border:0;background:#fff"></iframe></div>
+          <a class="resource-direct-link" href="${url}" target="_blank" rel="noopener">PDF 새 창에서 열기</a>`;
+        }
       }else{
         panel.innerHTML=header+`<div class="resource-media-viewer"><video src="${url}" controls playsinline></video></div>`;
       }
