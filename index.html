@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>2027학년도 학부모총회 | 인천청라고등학교</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Nanum+Brush+Script&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Nanum+Brush+Script&display=block');
     :root{
       --main:#dff0e7;
       --main-strong:#2f6b52;
@@ -412,7 +412,7 @@
     .consent label{cursor:pointer;line-height:1.7}
 
     .principal-message{
-      font-family:"Nanum Pen Script","Segoe Print","Bradley Hand","Comic Sans MS",cursive;
+      font-family:'Nanum Brush Script', cursive;
       visibility:hidden;
       opacity:0;
     }
@@ -1213,93 +1213,16 @@
       table{font-size:12px}.sig-thumb{width:120px;height:48px;border:0}
     }
   
-/* v35 mobile form touch fix */
-.child-row select,
-.child-row input,
-#registerPage select,
-#registerPage input{
-  position:relative;
-  z-index:2;
-  pointer-events:auto;
-  touch-action:manipulation;
-}
-.child-row{
-  position:relative;
-  z-index:1;
-}
-.child-row select{
-  min-height:48px;
-  font-size:16px;
-  -webkit-appearance:menulist;
-  appearance:auto;
-}
-@media (max-width:640px){
-  .child-row{
-    overflow:visible !important;
-  }
-  .child-row select{
-    width:100%;
-    min-width:0;
-  }
-}
 
-
-/* v36: mobile registration interaction hard fix */
-#registerPage{
-  position:relative !important;
-  z-index:50 !important;
-  isolation:isolate;
-  pointer-events:auto !important;
-}
-#registerPage .section-card,
-#registerPage .field,
-#registerPage .child-row,
-#registerPage .consent,
-#registerPage .signature-wrap{
-  position:relative;
-  z-index:1;
-  pointer-events:auto !important;
-}
-#registerPage input,
-#registerPage select,
-#registerPage button,
-#registerPage label,
-#registerPage canvas{
-  position:relative;
-  z-index:5;
-  pointer-events:auto !important;
-}
-#registerPage input,
-#registerPage select,
-#registerPage button,
-#registerPage label{
-  touch-action:manipulation !important;
-}
-#registerPage .consent{
-  z-index:6;
-}
-#registerPage .consent input[type="checkbox"]{
-  width:30px !important;
-  height:30px !important;
-  min-width:30px !important;
-}
+/* v37 mobile registration - native form controls */
+#registerPage{position:relative;z-index:1}
+#registerPage .section-card{overflow:visible}
+#registerPage input,#registerPage select,#registerPage button,#registerPage label{pointer-events:auto;touch-action:auto}
+#registerPage .consent input[type="checkbox"]{width:30px;height:30px;min-width:30px}
 @media (max-width:700px){
-  #registerPage{
-    overflow:visible !important;
-  }
-  #registerPage .child-row{
-    display:grid !important;
-    grid-template-columns:1fr 1fr !important;
-    gap:10px !important;
-  }
-  #registerPage .child-row .field:last-of-type{
-    grid-column:1 / -1 !important;
-  }
-  #registerPage input,
-  #registerPage select{
-    min-height:50px !important;
-    font-size:16px !important;
-  }
+  #registerPage .child-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:end}
+  #registerPage .child-row .field.name{grid-column:1/-1}
+  #registerPage input,#registerPage select{min-height:50px;font-size:16px}
 }
 
 </style>
@@ -1376,15 +1299,17 @@ window.supabaseClient = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
 <script>
 (function(){
-  function ready(){ document.documentElement.classList.add('pen-font-ready'); }
-  if(document.fonts && document.fonts.load){
-    Promise.race([
-      document.fonts.load('28px "Nanum Pen Script"'),
-      new Promise(r=>setTimeout(r,2500))
-    ]).then(ready).catch(ready);
-  }else{
-    window.addEventListener('load',ready,{once:true});
+  async function revealPrincipalWhenFontReady(){
+    try{
+      if(document.fonts?.load){
+        await document.fonts.load('36px "Nanum Brush Script"');
+      }else{
+        await new Promise(resolve=>window.addEventListener('load',resolve,{once:true}));
+      }
+    }catch(e){}
+    document.documentElement.classList.add('pen-font-ready');
   }
+  revealPrincipalWhenFontReady();
 })();
 </script>
 </head>
@@ -1840,6 +1765,7 @@ function hideAll(){
 }
 function goHome(){ hideAll(); document.getElementById('homePage').classList.remove('hidden'); window.scrollTo(0,0); }
 function startRegistration(){
+  document.querySelectorAll('.modal-backdrop').forEach(m=>m.classList.add('hidden'));
   try{
     const saved=localStorage.getItem(deviceKey);
     if(saved){
@@ -1883,12 +1809,11 @@ function initSignature(){
     ctx.scale(ratio,ratio); ctx.lineWidth=2.3; ctx.lineCap='round'; ctx.strokeStyle='#183a2d';
     const pos=(e)=>{
       const r=canvas.getBoundingClientRect();
-      const p=e.touches?e.touches[0]:e;
-      return {x:p.clientX-r.left,y:p.clientY-r.top};
+      return {x:e.clientX-r.left,y:e.clientY-r.top};
     };
-    canvas.onmousedown=canvas.ontouchstart=(e)=>{e.preventDefault();isDrawing=true;const p=pos(e);ctx.beginPath();ctx.moveTo(p.x,p.y)};
-    canvas.onmousemove=canvas.ontouchmove=(e)=>{if(!isDrawing)return;e.preventDefault();const p=pos(e);ctx.lineTo(p.x,p.y);ctx.stroke();hasSignature=true};
-    window.onmouseup=window.ontouchend=()=>isDrawing=false;
+    canvas.onpointerdown=(e)=>{e.preventDefault();isDrawing=true;canvas.setPointerCapture?.(e.pointerId);const p=pos(e);ctx.beginPath();ctx.moveTo(p.x,p.y)};
+    canvas.onpointermove=(e)=>{if(!isDrawing)return;e.preventDefault();const p=pos(e);ctx.lineTo(p.x,p.y);ctx.stroke();hasSignature=true};
+    canvas.onpointerup=canvas.onpointercancel=()=>{isDrawing=false;};
   },50);
 }
 function clearSignature(){ if(!ctx||!canvas)return; ctx.clearRect(0,0,canvas.width,canvas.height); hasSignature=false; }
@@ -2020,6 +1945,27 @@ function getTeacherSettings(){
   [1,2,3].forEach(g=>{obj[g]={head:''};for(let c=1;c<=10;c++)obj[g][c]='';});
   return obj;
 }
+
+function bindTeacherArrowNavigation(){
+  const inputs=[...document.querySelectorAll('#teacherAdminBody input')];
+  inputs.forEach(inp=>{
+    if(inp.dataset.arrowBound==='1') return;
+    inp.dataset.arrowBound='1';
+    inp.addEventListener('keydown',e=>{
+      if(!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) return;
+      const g=Number(inp.dataset.g);
+      const c=inp.dataset.c==='head'?0:Number(inp.dataset.c);
+      let ng=g,nc=c;
+      if(e.key==='ArrowUp') nc=Math.max(0,c-1);
+      if(e.key==='ArrowDown') nc=Math.min(10,c+1);
+      if(e.key==='ArrowLeft') ng=Math.max(1,g-1);
+      if(e.key==='ArrowRight') ng=Math.min(3,g+1);
+      const target=document.querySelector(`#teacherAdminBody input[data-g="${ng}"][data-c="${nc===0?'head':nc}"]`);
+      if(target){e.preventDefault();target.focus();target.select?.();}
+    });
+  });
+}
+
 function renderTeacherAdmin(){
   const body=document.getElementById('teacherAdminBody'); if(!body)return;
   const t=getTeacherSettings();
@@ -2034,8 +1980,9 @@ function renderTeacherAdmin(){
       <td><input data-g="2" data-c="${c}" value="${t[2]?.[c]||''}" placeholder="성명"></td>
       <td><input data-g="3" data-c="${c}" value="${t[3]?.[c]||''}" placeholder="성명"></td></tr>`;
   }).join('');
+  bindTeacherArrowNavigation();
 }
-function saveTeacherSettings(){
+async function saveTeacherSettings(){
   const t=getTeacherSettings();
   document.querySelectorAll('#teacherAdminBody input').forEach(inp=>{
     const g=inp.dataset.g,c=inp.dataset.c;
@@ -2043,8 +1990,9 @@ function saveTeacherSettings(){
     t[g][c]=inp.value.trim();
   });
   localStorage.setItem(teacherSettingsKey,JSON.stringify(t));
+  await saveSharedConfig(getEventSettings(),t);
   renderTeacherGrid();renderMyTeachers();
-  alert('담임교사 정보를 저장했습니다.');
+  alert('담임교사 정보를 서버에 저장했습니다.');
 }
 function renderTeacherGrid(){
   const body=document.getElementById('teacherGridBody'); if(!body)return;
@@ -2258,22 +2206,24 @@ function saveEventInfo(){
   refreshEventContent();updateEventDatePreview();
   alert('행사정보를 저장했습니다.');
 }
-function saveScheduleSettings(){
+async function saveScheduleSettings(){
   const s=getEventSettings();
   s.schedule=collectScheduleFromForm();
   localStorage.setItem(settingsKey,JSON.stringify(s));
+  await saveSharedConfig(s,getTeacherSettings());
   renderPublicSchedule();
-  alert('식순을 저장했습니다.');
+  alert('식순을 서버에 저장했습니다.');
 }
-function savePrincipalMessage(){
+async function savePrincipalMessage(){
   const s=getEventSettings();
   s.principalMessage=document.getElementById('principalInput')?.value.trim()||'';
   localStorage.setItem(settingsKey,JSON.stringify(s));
+  await saveSharedConfig(s,getTeacherSettings());
   refreshEventContent();
-  alert('학교장 인사말을 저장했습니다.');
+  alert('학교장 인사말을 서버에 저장했습니다.');
 }
 
-function saveAllEventSettings(){
+async function saveAllEventSettings(){
   const current=getEventSettings();
   const s={
     ...current,
@@ -2287,9 +2237,10 @@ function saveAllEventSettings(){
     schedule:collectScheduleFromForm()
   };
   localStorage.setItem(settingsKey,JSON.stringify(s));
+  await saveSharedConfig(s,getTeacherSettings());
   refreshEventContent();
   updateEventDatePreview();
-  alert('행사 설정을 저장했습니다.');
+  alert('행사 설정을 서버에 저장했습니다.');
 }
 
 function getRoomFloorByName(name){
@@ -2427,47 +2378,153 @@ async function deleteResourceBlob(id){
 }
 
 const resourceSettingsKey='cheongnaParentMeeting2027Resources';
+
+const sharedState = {
+  hasConfig:false,
+  settings:null,
+  teachers:null,
+  resources:[],
+  layout:null,
+  loaded:false
+};
+async function waitForSupabaseClient(){
+  for(let i=0;i<80;i++){
+    if(window.supabaseClient) return window.supabaseClient;
+    await new Promise(r=>setTimeout(r,50));
+  }
+  throw new Error('Supabase 연결을 준비하지 못했습니다.');
+}
+async function loadSharedState(){
+  try{
+    await waitForSupabaseClient();
+    const year=2027;
+    const data=await supabaseBridge.rpc('get_parent_meeting_public_state',{p_event_year:year});
+    if(data){
+      sharedState.hasConfig=!!data.has_config;
+      sharedState.settings=data.settings||null;
+      sharedState.teachers=data.teachers||null;
+      sharedState.resources=Array.isArray(data.resources)?data.resources:[];
+      sharedState.layout=data.layout||null;
+      sharedState.loaded=true;
+      if(sharedState.settings) localStorage.setItem(settingsKey,JSON.stringify(sharedState.settings));
+      if(sharedState.teachers) localStorage.setItem(teacherSettingsKey,JSON.stringify(sharedState.teachers));
+      localStorage.setItem(resourceSettingsKey,JSON.stringify(sharedState.resources));
+      if(sharedState.layout) localStorage.setItem(layoutMetaKey,JSON.stringify(sharedState.layout));
+      refreshEventContent();
+    }
+  }catch(e){
+    console.warn('공용 설정 불러오기 실패 - 로컬 캐시 사용',e);
+  }
+}
+async function saveSharedConfig(settings,teachers){
+  if(!activeAdminPassword) throw new Error('관리자 로그인이 필요합니다.');
+  await supabaseBridge.rpc('save_parent_meeting_config',{
+    p_password:activeAdminPassword,
+    p_event_year:2027,
+    p_settings:settings,
+    p_teachers:teachers
+  });
+  sharedState.hasConfig=true;
+  sharedState.settings=settings;
+  sharedState.teachers=teachers;
+}
+async function migrateLocalAdminStateIfNeeded(){
+  if(sharedState.hasConfig) return;
+  const settings=getEventSettings();
+  const teachers=getTeacherSettings();
+  await saveSharedConfig(settings,teachers);
+  await loadSharedState();
+}
+
 function getResourceItems(){
   try{return JSON.parse(localStorage.getItem(resourceSettingsKey)||'[]')}catch(e){return []}
 }
 function saveResourceItems(items){localStorage.setItem(resourceSettingsKey,JSON.stringify(items))}
+
+async function requestStorageAction(action,path){
+  const res=await fetch('/api/storage-sign',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({password:activeAdminPassword,action,path})
+  });
+  const body=await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(body.error||'파일 저장 서버 오류');
+  return body;
+}
+function safeStorageName(name){
+  const ext=(name.split('.').pop()||'bin').replace(/[^a-zA-Z0-9]/g,'').slice(0,8)||'bin';
+  return `${Date.now()}-${crypto.randomUUID?.()||Math.random().toString(36).slice(2)}.${ext}`;
+}
+async function uploadSharedFile(file,prefix='resources'){
+  if(!activeAdminPassword) throw new Error('관리자 로그인이 필요합니다.');
+  await waitForSupabaseClient();
+  const path=`2027/${prefix}/${safeStorageName(file.name)}`;
+  const signed=await requestStorageAction('upload',path);
+  const {error}=await window.supabaseClient.storage
+    .from('parent-meeting-assets')
+    .uploadToSignedUrl(path,signed.token,file,{contentType:file.type});
+  if(error) throw error;
+  const pub=window.supabaseClient.storage.from('parent-meeting-assets').getPublicUrl(path);
+  return {path,url:pub.data.publicUrl};
+}
+
 async function addResourceItem(){
   const title=document.getElementById('resourceTitleInput').value.trim();
   const dept=document.getElementById('resourceDeptInput').value.trim();
   if(!title){alert('자료명을 입력해 주세요.');return}
   if(!dept){alert('담당부서를 입력해 주세요.');return}
+  if(!activeAdminPassword){alert('관리자 로그인이 필요합니다.');return}
 
-  const items=getResourceItems();
-  const id=Date.now();
+  let payload={p_password:activeAdminPassword,p_event_year:2027,p_title:title,p_dept:dept,
+    p_type:selectedResourceType,p_url:null,p_embed_url:null,p_storage_path:null,p_file_name:null,p_mime:null};
 
-  if(selectedResourceType==='youtube'){
-    const url=document.getElementById('resourceYoutubeInput').value.trim();
-    const embed=getYoutubeEmbedUrl(url);
-    if(!embed){alert('올바른 YouTube 링크를 입력해 주세요.');return}
-    items.push({id,title,dept,type:'youtube',url,embedUrl:embed});
-  }else{
-    const file=droppedResourceFile || document.getElementById('resourceFileInput').files?.[0];
-    if(!file){alert('PDF 또는 영상 파일을 선택해 주세요.');return}
-    const type=file.type==='application/pdf'?'pdf':'video';
-    try{await storeResourceBlob(id,file)}catch(e){console.error(e);alert('파일 저장 중 오류가 발생했습니다.');return}
-    items.push({id,title,dept,type,fileName:file.name,mime:file.type});
+  try{
+    if(selectedResourceType==='youtube'){
+      const url=document.getElementById('resourceYoutubeInput').value.trim();
+      const embed=getYoutubeEmbedUrl(url);
+      if(!embed){alert('올바른 YouTube 링크를 입력해 주세요.');return}
+      payload.p_url=url; payload.p_embed_url=embed;
+    }else{
+      const file=droppedResourceFile || document.getElementById('resourceFileInput').files?.[0];
+      if(!file){alert('PDF 또는 영상 파일을 선택해 주세요.');return}
+      const uploaded=await uploadSharedFile(file,'resources');
+      payload.p_type=file.type==='application/pdf'?'pdf':'video';
+      payload.p_url=uploaded.url;
+      payload.p_storage_path=uploaded.path;
+      payload.p_file_name=file.name;
+      payload.p_mime=file.type;
+    }
+    await supabaseBridge.rpc('save_parent_meeting_resource',payload);
+    await loadSharedState();
+
+    document.getElementById('resourceTitleInput').value='';
+    document.getElementById('resourceDeptInput').value='';
+    if(document.getElementById('resourceYoutubeInput'))document.getElementById('resourceYoutubeInput').value='';
+    if(document.getElementById('resourceFileInput'))document.getElementById('resourceFileInput').value='';
+    document.getElementById('selectedFileName')?.classList.add('hidden');
+    const selectedText=document.getElementById('selectedFileNameText'); if(selectedText) selectedText.textContent='';
+    droppedResourceFile=null;
+    renderAdminResources();renderPublicResources();
+    alert('안내자료를 서버에 저장했습니다.');
+  }catch(e){
+    console.error(e);
+    alert('자료 저장 중 오류가 발생했습니다.\n'+(e?.message||e));
   }
-
-  saveResourceItems(items);
-  document.getElementById('resourceTitleInput').value='';
-  document.getElementById('resourceDeptInput').value='';
-  if(document.getElementById('resourceYoutubeInput'))document.getElementById('resourceYoutubeInput').value='';
-  if(document.getElementById('resourceFileInput'))document.getElementById('resourceFileInput').value='';
-  document.getElementById('selectedFileName')?.classList.add('hidden');
-  const selectedText=document.getElementById('selectedFileNameText'); if(selectedText) selectedText.textContent='';
-  droppedResourceFile=null;
-  renderAdminResources();renderPublicResources();
 }
 async function deleteResourceItem(id){
-  const item=getResourceItems().find(x=>x.id===id);
-  if(item && item.type!=='youtube'){try{await deleteResourceBlob(id)}catch(e){}}
-  saveResourceItems(getResourceItems().filter(x=>x.id!==id));
-  renderAdminResources();renderPublicResources();
+  const item=getResourceItems().find(x=>String(x.id)===String(id));
+  if(!item)return;
+  if(!confirm('이 안내자료를 삭제할까요?'))return;
+  try{
+    if(item.storage_path) await requestStorageAction('delete',item.storage_path);
+    await supabaseBridge.rpc('delete_parent_meeting_resource',{
+      p_password:activeAdminPassword,p_resource_id:Number(id)
+    });
+    await loadSharedState();
+    renderAdminResources();renderPublicResources();
+  }catch(e){
+    alert('자료 삭제 중 오류가 발생했습니다.\n'+(e?.message||e));
+  }
 }
 
 
@@ -2585,17 +2642,14 @@ async function renderPublicResources(){
       ${localMode?'<div class="embed-deploy-note">현재처럼 HTML 파일을 직접 연 상태(file://)에서는 YouTube가 오류 153으로 임베드 재생을 차단할 수 있습니다. Vercel처럼 https 주소로 배포하면 이 화면 안에서 재생됩니다.</div>':''}
       <a class="resource-direct-link" href="${x.url}" target="_blank" rel="noopener">YouTube에서 열기</a>`;
     }else{
-      const blob=await getResourceBlob(x.id);
-      if(!blob){panel.innerHTML=header+`<div class="resource-fallback">이 기기에서 파일을 찾을 수 없습니다.<br>실제 배포 버전에서는 서버 저장소에서 불러오게 됩니다.</div>`;}
-      else{
-        const url=URL.createObjectURL(blob);
-        if(x.type==='pdf'){
-          panel.innerHTML=header+`<div class="resource-media-viewer"><div id="pdfRender${x.id}" class="pdf-render-wrap">PDF를 불러오는 중입니다.</div></div>
-          <a class="resource-direct-link" href="${url}" target="_blank" rel="noopener">PDF 새 창에서 열기</a>`;
-          setTimeout(()=>renderPdfBlobToPages(blob,`pdfRender${x.id}`),0);
-        }else{
-          panel.innerHTML=header+`<div class="resource-media-viewer"><video src="${url}" controls playsinline></video></div>`;
-        }
+      const url=x.url||'';
+      if(!url){
+        panel.innerHTML=header+`<div class="resource-fallback">파일 주소를 불러오지 못했습니다.</div>`;
+      }else if(x.type==='pdf'){
+        panel.innerHTML=header+`<div class="resource-media-viewer"><iframe src="${url}" title="${x.title}" style="width:100%;height:620px;border:0;background:#fff"></iframe></div>
+        <a class="resource-direct-link" href="${url}" target="_blank" rel="noopener">PDF 새 창에서 열기</a>`;
+      }else{
+        panel.innerHTML=header+`<div class="resource-media-viewer"><video src="${url}" controls playsinline></video></div>`;
       }
     }
     panels.appendChild(panel);
@@ -2850,6 +2904,8 @@ async function teacherLogin(){
     const ok=await supabaseBridge.verifyAdmin(pw);
     if(!ok){alert('관리자 비밀번호가 올바르지 않습니다.');return;}
     activeAdminPassword=pw;
+    await loadSharedState();
+    await migrateLocalAdminStateIfNeeded();
     hideAll();
     document.getElementById('teacherPage').classList.remove('hidden');
     openAdminPanel('home');
@@ -3038,6 +3094,13 @@ async function storeLayoutFloorBlob(floor,blob){
   });
 }
 async function getLayoutFloorBlob(floor){
+  const url=sharedState.layout?.floors?.[String(floor)]||sharedState.layout?.floors?.[floor];
+  if(url){
+    try{
+      const r=await fetch(url,{cache:'no-store'});
+      if(r.ok) return await r.blob();
+    }catch(e){}
+  }
   const db=await openLayoutDB();
   return new Promise((resolve,reject)=>{
     const tx=db.transaction('floors','readonly');
@@ -3063,64 +3126,55 @@ async function canvasToBlob(canvas){
 async function handleLayoutPdfUpload(file){
   if(!file)return;
   if(file.type!=='application/pdf' && !file.name.toLowerCase().endsWith('.pdf')){
-    alert('PDF 파일을 선택해 주세요.');
-    return;
+    alert('PDF 파일을 선택해 주세요.'); return;
   }
-
   const status=document.getElementById('layoutUploadStatus');
   status.className='layout-upload-status working';
-  status.textContent='PDF를 읽고 1~5층으로 자동 분할하는 중입니다...';
-
+  status.textContent='PDF를 읽고 1~5층으로 자동 분할하여 서버에 저장하는 중입니다...';
   try{
     const pdfjsLib=await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.7.76/pdf.min.mjs');
     pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.7.76/pdf.worker.min.mjs';
-
     const buffer=await file.arrayBuffer();
     const pdf=await pdfjsLib.getDocument({data:buffer}).promise;
     const page=await pdf.getPage(1);
     const viewport=page.getViewport({scale:2.5});
     const source=document.createElement('canvas');
-    source.width=Math.ceil(viewport.width);
-    source.height=Math.ceil(viewport.height);
+    source.width=Math.ceil(viewport.width); source.height=Math.ceil(viewport.height);
     const ctx=source.getContext('2d',{alpha:false});
     await page.render({canvasContext:ctx,viewport}).promise;
 
     const refW=1428, refH=2019, inset=5;
-    const refBoxes={
-      1:[69+inset,181+inset,708-inset,770-inset],
-      2:[708+inset,181+inset,1348-inset,770-inset],
-      3:[69+inset,770+inset,708-inset,1299-inset],
-      4:[708+inset,770+inset,1348-inset,1299-inset],
-      5:[69+inset,1299+inset,708-inset,1828-inset]
-    };
-
+    const refBoxes={1:[74,186,703,765],2:[713,186,1343,765],3:[74,775,703,1294],4:[713,775,1343,1294],5:[74,1304,703,1823]};
     await clearLayoutFloorBlobs();
-
+    const floors={};
+    const paths={};
     for(let floor=1;floor<=5;floor++){
       const [rx1,ry1,rx2,ry2]=refBoxes[floor];
-      const sx=Math.round(source.width*(rx1/refW));
-      const sy=Math.round(source.height*(ry1/refH));
-      const sw=Math.round(source.width*((rx2-rx1)/refW));
-      const sh=Math.round(source.height*((ry2-ry1)/refH));
-      const out=document.createElement('canvas');
-      out.width=sw;
-      out.height=sh;
-      const octx=out.getContext('2d',{alpha:false});
-      octx.fillStyle='#fff';
-      octx.fillRect(0,0,sw,sh);
+      const sx=Math.round(source.width*(rx1/refW)), sy=Math.round(source.height*(ry1/refH));
+      const sw=Math.round(source.width*((rx2-rx1)/refW)), sh=Math.round(source.height*((ry2-ry1)/refH));
+      const out=document.createElement('canvas'); out.width=sw; out.height=sh;
+      const octx=out.getContext('2d',{alpha:false}); octx.fillStyle='#fff'; octx.fillRect(0,0,sw,sh);
       octx.drawImage(source,sx,sy,sw,sh,0,0,sw,sh);
-      await storeLayoutFloorBlob(floor,await canvasToBlob(out));
+      const blob=await canvasToBlob(out);
+      await storeLayoutFloorBlob(floor,blob);
+      const f=new File([blob],`floor-${floor}.png`,{type:'image/png'});
+      const up=await uploadSharedFile(f,'layout');
+      floors[String(floor)]=up.url; paths[String(floor)]=up.path;
     }
-
-    localStorage.setItem(layoutMetaKey,JSON.stringify({fileName:file.name,savedAt:new Date().toISOString()}));
+    const layout={fileName:file.name,savedAt:new Date().toISOString(),floors,paths};
+    await supabaseBridge.rpc('save_parent_meeting_layout',{
+      p_password:activeAdminPassword,p_event_year:2027,p_layout:layout
+    });
+    localStorage.setItem(layoutMetaKey,JSON.stringify(layout));
+    await loadSharedState();
     status.className='layout-upload-status success';
-    status.textContent=`등록 완료: ${file.name} · 1~5층 자동 분할 완료`;
-    await renderLayoutSettings();
-    await renderFloorPlan();
+    status.textContent=`등록 완료: ${file.name} · 모든 기기에서 공용 사용`;
+    await renderLayoutSettings(); await renderFloorPlan();
   }catch(e){
     console.error(e);
     status.className='layout-upload-status';
-    status.textContent='배치도 처리 중 오류가 발생했습니다. 학교 표준 교실배치도 PDF인지 확인해 주세요.';
+    status.textContent='배치도 처리 또는 서버 저장 중 오류가 발생했습니다.';
+    alert('배치도 저장 오류\n'+(e?.message||e));
   }
 }
 async function renderLayoutSettings(){
@@ -3165,10 +3219,17 @@ async function renderLayoutSettings(){
 }
 async function clearUploadedLayout(){
   if(!confirm('등록한 올해 배치도를 삭제하고 앱의 기본 배치도로 돌아갈까요?'))return;
-  await clearLayoutFloorBlobs();
-  localStorage.removeItem(layoutMetaKey);
-  await renderLayoutSettings();
-  await renderFloorPlan();
+  try{
+    const paths=sharedState.layout?.paths||{};
+    for(const path of Object.values(paths)){ try{await requestStorageAction('delete',path)}catch(e){} }
+    await supabaseBridge.rpc('save_parent_meeting_layout',{
+      p_password:activeAdminPassword,p_event_year:2027,p_layout:null
+    });
+    await clearLayoutFloorBlobs();
+    localStorage.removeItem(layoutMetaKey);
+    sharedState.layout=null;
+    await renderLayoutSettings(); await renderFloorPlan();
+  }catch(e){alert('배치도 삭제 오류\n'+(e?.message||e));}
 }
 
 window.addEventListener('resize',fitFloorViewerToScreen);
@@ -3202,7 +3263,7 @@ const supabaseBridge = {
   },
   async submitRegistration({parentName,signature,consent,children}){
     return await this.rpc('submit_parent_meeting_registration',{
-      p_event_year:this.getEventYear(),
+      p_event_year:2027,
       p_parent_name:parentName,
       p_signature:signature||null,
       p_device_id:this.getDeviceId(),
@@ -3218,7 +3279,7 @@ const supabaseBridge = {
     return !!(await this.rpc('verify_parent_meeting_admin',{p_password:password}));
   },
   async fetchRegistrations(password,year=null,grade=null,classNo=null){
-    return await this.rpc('get_parent_meeting_registrations',{
+    return await this.rpc('get_parent_meeting_registrations_v2',{
       p_password:password,
       p_event_year:year,
       p_grade:grade,
@@ -3332,6 +3393,8 @@ refreshEventContent();
 
 window.addEventListener('DOMContentLoaded',enableTeacherPasswordEnter);
 
+
+window.addEventListener('load',()=>loadSharedState());
 </script>
 
 <div id="resetRegistryModal" class="modal-backdrop hidden">
