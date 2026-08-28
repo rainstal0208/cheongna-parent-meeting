@@ -2199,17 +2199,23 @@ function collectScheduleFromForm(){
   })).filter(x=>x.title);
 }
 
-function saveEventInfo(){
-  const s=getEventSettings();
-  s["1"]=document.getElementById('dest1')?.value.trim()||'';
-  s["2"]=document.getElementById('dest2')?.value.trim()||'';
-  s["3"]=document.getElementById('dest3')?.value.trim()||'';
-  
-  s.startTime=document.getElementById('eventStartInput')?.value||'13:00';
-  s.eventDate=document.getElementById('eventDateInput')?.value||'2027-03-20';
-  localStorage.setItem(settingsKey,JSON.stringify(s));
-  refreshEventContent();updateEventDatePreview();
-  alert('행사정보를 저장했습니다.');
+async function saveEventInfo(){
+  try{
+    const s=getEventSettings();
+    s["1"]=document.getElementById('dest1')?.value.trim()||'';
+    s["2"]=document.getElementById('dest2')?.value.trim()||'';
+    s["3"]=document.getElementById('dest3')?.value.trim()||'';
+    s.startTime=document.getElementById('eventStartInput')?.value||'13:00';
+    s.eventDate=document.getElementById('eventDateInput')?.value||'2027-03-20';
+    localStorage.setItem(settingsKey,JSON.stringify(s));
+    await saveSharedConfig(s,getTeacherSettings());
+    refreshEventContent();
+    updateEventDatePreview();
+    alert('총회 정보를 서버에 저장했습니다.');
+  }catch(e){
+    console.error(e);
+    alert('총회 정보 저장에 실패했습니다.\n'+(e?.message||String(e)));
+  }
 }
 async function saveScheduleSettings(){
   const s=getEventSettings();
