@@ -2444,7 +2444,17 @@ async function migrateLocalAdminStateIfNeeded(){
 function getResourceItems(){
   try{return JSON.parse(localStorage.getItem(resourceSettingsKey)||'[]')}catch(e){return []}
 }
-function saveResourceItems(items){localStorage.setItem(resourceSettingsKey,JSON.stringify(items))}
+async function saveResourceItems(items){
+  localStorage.setItem(resourceSettingsKey,JSON.stringify(items));
+  if(!activeAdminPassword)return;
+  const orderedIds=items.map(x=>Number(x.id)).filter(Number.isFinite);
+  if(orderedIds.length){
+    await supabaseBridge.rpc('reorder_parent_meeting_resources',{
+      p_password:activeAdminPassword,p_event_year:2027,p_ids:orderedIds
+    });
+    await loadSharedState();
+  }
+}
 
 async function requestStorageAction(action,path){
   const res=await fetch('/api/storage-sign',{
@@ -2549,7 +2559,7 @@ function setupResourceDragSort(){
       item.classList.add('drag-over');
     });
     item.addEventListener('dragleave',()=>item.classList.remove('drag-over'));
-    item.addEventListener('drop',e=>{
+    item.addEventListener('drop',async e=>{
       e.preventDefault();
       item.classList.remove('drag-over');
       const target=Number(item.dataset.index);
@@ -2557,19 +2567,19 @@ function setupResourceDragSort(){
       const items=getResourceItems();
       const [moved]=items.splice(resourceDragIndex,1);
       items.splice(target,0,moved);
-      saveResourceItems(items);
+      await saveResourceItems(items);
       renderAdminResources();
       renderPublicResources();
     });
   });
 }
 
-function moveResourceItem(index,direction){
+async function moveResourceItem(index,direction){
   const items=getResourceItems();
   const next=index+direction;
   if(next<0||next>=items.length)return;
   [items[index],items[next]]=[items[next],items[index]];
-  saveResourceItems(items);
+  await saveResourceItems(items);
   renderAdminResources();
   renderPublicResources();
 }
