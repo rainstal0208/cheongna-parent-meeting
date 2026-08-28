@@ -1778,10 +1778,15 @@ function hideAll(){
   ['homePage','registerPage','eventPage','teacherLoginPage','teacherPage'].forEach(id=>document.getElementById(id).classList.add('hidden'));
 }
 function goHome(){ hideAll(); document.getElementById('homePage').classList.remove('hidden'); window.scrollTo(0,0); }
-function startRegistration(){
-  // '등록하기'는 기존 등록 여부와 관계없이 항상 신규 등록 화면을 연다.
+async function startRegistration(){
+  // 등록하기를 눌렀을 때 현재 학년도에 이 기기의 기존 등록이 실제 서버에 남아 있으면 먼저 알려준다.
   document.querySelectorAll('.modal-backdrop').forEach(m=>m.classList.add('hidden'));
   try{
+    const reg=await validateSavedRegistration();
+    if(reg){
+      showAlreadyRegisteredMessage(reg);
+      return;
+    }
     hideAll();
     document.getElementById('registerPage').classList.remove('hidden');
     if(!document.querySelector('.child-row')) addChild();
@@ -1970,7 +1975,8 @@ async function validateSavedRegistration(){
 async function alreadyRegistered(){
   const reg=await validateSavedRegistration();
   if(reg){
-    showAlreadyRegisteredMessage(reg);
+    // '이미 등록했어요'는 확인된 경우 팝업 없이 바로 안내 화면으로 이동한다.
+    showEvent();
     return;
   }
   alert('현재 학년도 등록부에서 이 기기의 등록 정보를 확인할 수 없습니다. 등록하기를 눌러 새로 등록해 주세요.');
@@ -2323,6 +2329,8 @@ async function saveAllEventSettings(){
 function getRoomFloorByName(name){
   if(!name)return '';
   const cleaned=name.replace(/\s+/g,'').replace(/\(.*?\)/g,'');
+  // 등용관은 별동 강당으로 본관 floorData에는 없지만 학부모 동선상 2층으로 안내한다.
+  if(cleaned.includes('등용관')) return '2층';
   for(const [floor,rooms] of Object.entries(floorData||{})){
     const found=rooms.find(r=>{
       const rn=(r.name||'').replace(/\s+/g,'').replace(/\(.*?\)/g,'');
@@ -2725,6 +2733,12 @@ async function renderPdfUrlToPages(url,targetId){
   }
 }
 
+function escapeHtml(value){
+  return String(value??'').replace(/[&<>"']/g,ch=>({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[ch]));
+}
+
 async function renderPublicResources(){
   const tabs=document.getElementById('resourceTabs'), panels=document.getElementById('resourcePanels');
   if(!tabs||!panels)return;
@@ -2873,7 +2887,8 @@ function renderMapPersonalSummaries(){
   const grades=[...new Set(children.map(c=>String(c.grade)))];
   const rows=grades.map(g=>{
     const dest=settings[g]||'';
-    return dest?`<span class="personal-summary-item"><strong>${g}학년</strong> ${dest}</span>`:'';
+    const floor=getRoomFloorByName(dest);
+    return dest?`<span class="personal-summary-item"><strong>${g}학년</strong> ${dest}${floor?` <em>(${floor})</em>`:''}</span>`:'';
   }).filter(Boolean);
 
   gradeBox.innerHTML=rows.length
