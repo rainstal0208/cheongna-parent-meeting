@@ -2207,10 +2207,19 @@ async function saveEventInfo(){
     s["3"]=document.getElementById('dest3')?.value.trim()||'';
     s.startTime=document.getElementById('eventStartInput')?.value||'13:00';
     s.eventDate=document.getElementById('eventDateInput')?.value||'2027-03-20';
-    localStorage.setItem(settingsKey,JSON.stringify(s));
-    await saveSharedConfig(s,getTeacherSettings());
+    // 총회 정보는 전용 RPC로 서버 JSON의 해당 항목만 직접 갱신한다.
+    await supabaseBridge.rpc('save_parent_meeting_event_info',{
+      p_password:activeAdminPassword,
+      p_event_year:2027,
+      p_event_date:s.eventDate,
+      p_start_time:s.startTime,
+      p_dest1:s["1"],
+      p_dest2:s["2"],
+      p_dest3:s["3"]
+    });
+    await loadSharedState();
     refreshEventContent();
-    updateEventDatePreview();
+    loadEventSettingsForm();
     alert('총회 정보를 서버에 저장했습니다.');
   }catch(e){
     console.error(e);
