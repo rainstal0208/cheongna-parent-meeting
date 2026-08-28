@@ -1243,6 +1243,65 @@
   }
 }
 
+
+/* v36: mobile registration interaction hard fix */
+#registerPage{
+  position:relative !important;
+  z-index:50 !important;
+  isolation:isolate;
+  pointer-events:auto !important;
+}
+#registerPage .section-card,
+#registerPage .field,
+#registerPage .child-row,
+#registerPage .consent,
+#registerPage .signature-wrap{
+  position:relative;
+  z-index:1;
+  pointer-events:auto !important;
+}
+#registerPage input,
+#registerPage select,
+#registerPage button,
+#registerPage label,
+#registerPage canvas{
+  position:relative;
+  z-index:5;
+  pointer-events:auto !important;
+}
+#registerPage input,
+#registerPage select,
+#registerPage button,
+#registerPage label{
+  touch-action:manipulation !important;
+}
+#registerPage .consent{
+  z-index:6;
+}
+#registerPage .consent input[type="checkbox"]{
+  width:30px !important;
+  height:30px !important;
+  min-width:30px !important;
+}
+@media (max-width:700px){
+  #registerPage{
+    overflow:visible !important;
+  }
+  #registerPage .child-row{
+    display:grid !important;
+    grid-template-columns:1fr 1fr !important;
+    gap:10px !important;
+  }
+  #registerPage .child-row .field:last-of-type{
+    grid-column:1 / -1 !important;
+  }
+  #registerPage input,
+  #registerPage select{
+    min-height:50px !important;
+    font-size:16px !important;
+  }
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
@@ -2800,6 +2859,20 @@ async function teacherLogin(){
     alert('관리자 확인 중 오류가 발생했습니다.\\n'+(e?.message||e));
   }
 }
+
+async function diagnoseRegistrations(){
+  if(!activeAdminPassword){alert('관리자 로그인이 필요합니다.');return;}
+  try{
+    const rows=await supabaseBridge.fetchRegistrations(activeAdminPassword,null,null,null);
+    const regs=normalizeSupabaseRows(rows);
+    const childCount=regs.reduce((n,r)=>n+(r.children?.length||0),0);
+    const years=[...new Set(regs.map(r=>r.eventYear).filter(Boolean))].sort();
+    alert(`Supabase 등록 데이터\n등록 ${regs.length}건\n자녀 ${childCount}명\n학년도 ${years.length?years.join(', '):'없음'}`);
+  }catch(e){
+    alert('등록 데이터 조회 오류\n'+(e?.message||e));
+  }
+}
+
 async function renderTeacherTable(){
   const tbody=document.getElementById('teacherTableBody')||document.querySelector('#registryTable tbody');
   if(!tbody)return;
@@ -2815,7 +2888,7 @@ async function renderTeacherTable(){
   const classNo=classSel && classSel.value ? Number(classSel.value) : null;
 
   try{
-    const rows=await supabaseBridge.fetchRegistrations(activeAdminPassword,supabaseBridge.getEventYear(),grade,classNo);
+    const rows=await supabaseBridge.fetchRegistrations(activeAdminPassword,null,grade,classNo);
     const registrations=normalizeSupabaseRows(rows);
     window.currentTeacherRegistrations=registrations;
 
@@ -2825,7 +2898,7 @@ async function renderTeacherTable(){
     });
 
     const summary=document.getElementById('summaryBadge');
-    if(summary) summary.textContent=`등록 ${registrations.length}건`;
+    if(summary){ const years=[...new Set(registrations.map(r=>r.eventYear).filter(Boolean))].sort(); summary.textContent=`등록 ${registrations.length}건${years.length?' · '+years.join(', ')+'학년도':''}`; }
 
     if(!flat.length){
       tbody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:24px">등록된 학부모가 없습니다.</td></tr>';
@@ -3259,7 +3332,6 @@ refreshEventContent();
 
 window.addEventListener('DOMContentLoaded',enableTeacherPasswordEnter);
 
-window.addEventListener('DOMContentLoaded',()=>setTimeout(enableMobileRegistrationSelects,0));
 </script>
 
 <div id="resetRegistryModal" class="modal-backdrop hidden">
