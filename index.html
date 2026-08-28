@@ -473,7 +473,15 @@
     .teacher-grid .class-no{font-weight:900;background:#fafcfb}.department-head-row td{background:#edf6f1!important;font-weight:900;color:var(--main-deep)}
     .teacher-admin-table input{min-width:110px;padding:8px 9px;text-align:center}
 
-    .resource-tabs{display:flex;gap:8px;overflow:auto;margin:12px 0 18px;padding-bottom:2px}
+    .resource-tabs{margin:12px 0 18px;padding-bottom:2px}
+    .resource-tabs-desktop{display:flex;gap:8px;overflow:auto}
+    .resource-select-wrap{display:none}
+    @media(max-width:768px){
+      .resource-tabs-desktop{display:none}
+      .resource-select-wrap{display:block}
+      .resource-select-wrap span{display:block;font-size:14px;font-weight:800;color:#52665d;margin-bottom:7px}
+      .resource-select-wrap select{width:100%;min-height:52px;border:1px solid #bfd3c7;border-radius:14px;background:#fff;color:#173f31;padding:0 42px 0 14px;font:inherit;font-size:16px;font-weight:800;white-space:nowrap;text-overflow:ellipsis}
+    }
     .resource-tab{
       border:1px solid var(--line);background:#fff;color:#496056;border-radius:999px;
       padding:10px 15px;font-weight:800;white-space:nowrap
@@ -1771,14 +1779,9 @@ function hideAll(){
 }
 function goHome(){ hideAll(); document.getElementById('homePage').classList.remove('hidden'); window.scrollTo(0,0); }
 function startRegistration(){
+  // '등록하기'는 기존 등록 여부와 관계없이 항상 신규 등록 화면을 연다.
   document.querySelectorAll('.modal-backdrop').forEach(m=>m.classList.add('hidden'));
   try{
-    const saved=localStorage.getItem(deviceKey);
-    if(saved){
-      const reg=JSON.parse(saved);
-      showAlreadyRegisteredMessage(reg);
-      return;
-    }
     hideAll();
     document.getElementById('registerPage').classList.remove('hidden');
     if(!document.querySelector('.child-row')) addChild();
@@ -2077,7 +2080,10 @@ function openResourceTab(index,btn){
   document.querySelectorAll('.resource-panel').forEach(p=>p.classList.add('hidden'));
   const panel=document.getElementById('resourcePanel'+index); if(panel)panel.classList.remove('hidden');
   document.querySelectorAll('.resource-tab').forEach(b=>b.classList.remove('active'));
-  if(btn)btn.classList.add('active');
+  const desktopBtn=btn||document.querySelectorAll('.resource-tab')[index];
+  if(desktopBtn)desktopBtn.classList.add('active');
+  const mobileSelect=document.getElementById('resourceMobileSelect');
+  if(mobileSelect)mobileSelect.value=String(index);
 }
 
 
@@ -2728,7 +2734,9 @@ async function renderPublicResources(){
     panels.innerHTML='<div class="notice">등록된 학부모 교육자료가 없습니다.</div>';
     return;
   }
-  tabs.innerHTML=items.map((x,i)=>`<button class="resource-tab ${i===0?'active':''}" onclick="openResourceTab(${i},this)">${i+1}. ${x.title}</button>`).join('');
+  const options=items.map((x,i)=>`<option value="${i}">${i+1}. ${escapeHtml(x.title)}</option>`).join('');
+  const desktopTabs=items.map((x,i)=>`<button class="resource-tab ${i===0?'active':''}" onclick="openResourceTab(${i},this)">${i+1}. ${escapeHtml(x.title)}</button>`).join('');
+  tabs.innerHTML=`<div class="resource-tabs-desktop">${desktopTabs}</div><label class="resource-select-wrap"><span>교육자료 선택</span><select id="resourceMobileSelect" onchange="openResourceTab(Number(this.value),null)">${options}</select></label>`;
   panels.innerHTML='';
   for(let i=0;i<items.length;i++){
     const x=items[i];
@@ -3508,17 +3516,9 @@ function exportCSV(){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='2027_학부모총회_등록부.csv';a.click();URL.revokeObjectURL(a.href);
 }
 refreshEventContent();
-(async function initializeApp(){
-  // 서버의 현재 학년도 등록부를 기준으로 자동 통과 여부를 판단한다.
-  // 학년도가 바뀌거나 관리자가 등록부를 초기화하면 다시 등록 화면으로 갈 수 있다.
-  const saved=localStorage.getItem(deviceKey);
-  if(saved){
-    const reg=await validateSavedRegistration();
-    if(reg && reg.parentName && Array.isArray(reg.children) && reg.children.length){
-      showAlreadyRegisteredMessage(reg);
-      return;
-    }
-  }
+(function initializeApp(){
+  // 재접속 시 등록 여부와 관계없이 항상 첫 화면에서 시작한다.
+  // 기존 등록 확인은 사용자가 '이미 등록했어요'를 눌렀을 때만 서버와 대조한다.
   goHome();
 })();
 
