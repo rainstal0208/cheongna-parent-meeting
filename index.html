@@ -2422,6 +2422,8 @@ async function loadSharedState(){
       localStorage.setItem(resourceSettingsKey,JSON.stringify(sharedState.resources));
       if(sharedState.layout) localStorage.setItem(layoutMetaKey,JSON.stringify(sharedState.layout));
       refreshEventContent();
+      // 서버에서 최신 총회 정보를 받은 뒤 관리자 입력폼도 최신값으로 다시 채운다.
+      if(document.getElementById('eventDateInput')) loadEventSettingsForm();
     }
   }catch(e){
     console.warn('공용 설정 불러오기 실패 - 로컬 캐시 사용',e);
