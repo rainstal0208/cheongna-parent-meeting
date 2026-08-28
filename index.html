@@ -1741,6 +1741,7 @@ window.supabaseClient = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
     <p id="alreadyModalText">등록이 완료되어 있습니다. 학부모총회 안내 화면으로 이동할 수 있습니다.</p>
     <div class="modal-actions">
       <button class="primary" onclick="closeAlreadyAndContinue()">학부모총회 안내 보기</button>
+      <button class="ghost" onclick="startFreshRegistration()">새로 등록하기</button>
       <button class="ghost" onclick="closeAlreadyModal()">닫기</button>
     </div>
   </div>
@@ -1913,13 +1914,63 @@ function showAlreadyRegisteredMessage(reg){
 }
 function closeAlreadyModal(){document.getElementById('alreadyModal').classList.add('hidden')}
 function closeAlreadyAndContinue(){closeAlreadyModal();showEvent()}
-function alreadyRegistered(){
-  const saved=localStorage.getItem(deviceKey);
-  if(saved){
-    showEvent();
+async function startFreshRegistration(){
+  let saved=null;
+  try{ saved=JSON.parse(localStorage.getItem(deviceKey)||'null'); }catch(e){}
+  if(!saved?.registrationId){
+    closeAlreadyModal();
+    localStorage.removeItem(deviceKey);
+    goRegister();
     return;
   }
-  alert('이 기기에서 등록 완료 정보가 확인되지 않습니다. 처음 등록하는 경우 등록하기를 눌러 주세요.');
+  if(!confirm('기존 등록을 삭제하고 다시 등록하시겠습니까?\n잘못 입력한 내용을 새로 등록할 수 있습니다.')) return;
+  try{
+    await supabaseBridge.deleteMyRegistration(saved.registrationId);
+    localStorage.removeItem(deviceKey);
+    closeAlreadyModal();
+    goRegister();
+  }catch(e){
+    alert('기존 등록 삭제 중 오류가 발생했습니다.\n'+(e?.message||e));
+  }
+}
+
+async function validateSavedRegistration(){
+  let saved=null;
+  try{ saved=JSON.parse(localStorage.getItem(deviceKey)||'null'); }catch(e){}
+  if(!saved?.registrationId) return null;
+  try{
+    const found=await supabaseBridge.getMyRegistration(saved.registrationId);
+    if(!found){
+      localStorage.removeItem(deviceKey);
+      return null;
+    }
+    const reg=(typeof found==='string')?JSON.parse(found):found;
+    if(!reg) { localStorage.removeItem(deviceKey); return null; }
+    const normalized={
+      registrationId:reg.registration_id ?? reg.id ?? saved.registrationId,
+      parentName:reg.parent_name ?? reg.parentName ?? saved.parentName ?? '',
+      children:(reg.children||saved.children||[]).map(c=>({
+        grade:Number(c.grade),
+        classNo:Number(c.class_no ?? c.classNo),
+        studentName:c.student_name ?? c.studentName ?? ''
+      })),
+      eventYear:Number(reg.event_year ?? supabaseBridge.getEventYear()),
+      createdAt:reg.created_at ?? saved.createdAt
+    };
+    localStorage.setItem(deviceKey,JSON.stringify(normalized));
+    return normalized;
+  }catch(e){
+    console.warn('서버 등록 확인 실패',e);
+    return null;
+  }
+}
+async function alreadyRegistered(){
+  const reg=await validateSavedRegistration();
+  if(reg){
+    showAlreadyRegisteredMessage(reg);
+    return;
+  }
+  alert('현재 학년도 등록부에서 이 기기의 등록 정보를 확인할 수 없습니다. 등록하기를 눌러 새로 등록해 주세요.');
 }
 function showEvent(){
   hideAll();
@@ -2210,7 +2261,7 @@ async function saveEventInfo(){
     // 총회 정보는 전용 RPC로 서버 JSON의 해당 항목만 직접 갱신한다.
     await supabaseBridge.rpc('save_parent_meeting_event_info',{
       p_password:activeAdminPassword,
-      p_event_year:2027,
+      p_event_year:this.getEventYear(),
       p_event_date:s.eventDate,
       p_start_time:s.startTime,
       p_dest1:s["1"],
@@ -2442,7 +2493,7 @@ async function saveSharedConfig(settings,teachers){
   if(!activeAdminPassword) throw new Error('관리자 로그인이 필요합니다.');
   await supabaseBridge.rpc('save_parent_meeting_config',{
     p_password:activeAdminPassword,
-    p_event_year:2027,
+    p_event_year:this.getEventYear(),
     p_settings:settings,
     p_teachers:teachers
   });
@@ -2467,7 +2518,7 @@ async function saveResourceItems(items){
   const orderedIds=items.map(x=>Number(x.id)).filter(Number.isFinite);
   if(orderedIds.length){
     await supabaseBridge.rpc('reorder_parent_meeting_resources',{
-      p_password:activeAdminPassword,p_event_year:2027,p_ids:orderedIds
+      p_password:activeAdminPassword,p_event_year:this.getEventYear(),p_ids:orderedIds
     });
     await loadSharedState();
   }
@@ -2507,7 +2558,7 @@ async function addResourceItem(){
   if(!dept){alert('담당부서를 입력해 주세요.');return}
   if(!activeAdminPassword){alert('관리자 로그인이 필요합니다.');return}
 
-  let payload={p_password:activeAdminPassword,p_event_year:2027,p_title:title,p_dept:dept,
+  let payload={p_password:activeAdminPassword,p_event_year:this.getEventYear(),p_title:title,p_dept:dept,
     p_type:selectedResourceType,p_url:null,p_embed_url:null,p_storage_path:null,p_file_name:null,p_mime:null};
 
   try{
@@ -3231,7 +3282,7 @@ async function handleLayoutPdfUpload(file){
     }
     const layout={fileName:file.name,savedAt:new Date().toISOString(),floors,paths};
     await supabaseBridge.rpc('save_parent_meeting_layout',{
-      p_password:activeAdminPassword,p_event_year:2027,p_layout:layout
+      p_password:activeAdminPassword,p_event_year:this.getEventYear(),p_layout:layout
     });
     localStorage.setItem(layoutMetaKey,JSON.stringify(layout));
     await loadSharedState();
@@ -3291,7 +3342,7 @@ async function clearUploadedLayout(){
     const paths=sharedState.layout?.paths||{};
     for(const path of Object.values(paths)){ try{await requestStorageAction('delete',path)}catch(e){} }
     await supabaseBridge.rpc('save_parent_meeting_layout',{
-      p_password:activeAdminPassword,p_event_year:2027,p_layout:null
+      p_password:activeAdminPassword,p_event_year:this.getEventYear(),p_layout:null
     });
     await clearLayoutFloorBlobs();
     localStorage.removeItem(layoutMetaKey);
@@ -3331,7 +3382,7 @@ const supabaseBridge = {
   },
   async submitRegistration({parentName,signature,consent,children}){
     return await this.rpc('submit_parent_meeting_registration',{
-      p_event_year:2027,
+      p_event_year:this.getEventYear(),
       p_parent_name:parentName,
       p_signature:signature||null,
       p_device_id:this.getDeviceId(),
@@ -3352,6 +3403,20 @@ const supabaseBridge = {
       p_event_year:year,
       p_grade:grade,
       p_class_no:classNo
+    });
+  },
+  async getMyRegistration(registrationId){
+    return await this.rpc('get_parent_meeting_device_registration',{
+      p_event_year:this.getEventYear(),
+      p_device_id:this.getDeviceId(),
+      p_registration_id:registrationId||null
+    });
+  },
+  async deleteMyRegistration(registrationId){
+    return await this.rpc('delete_parent_meeting_device_registration',{
+      p_event_year:this.getEventYear(),
+      p_device_id:this.getDeviceId(),
+      p_registration_id:registrationId||null
     });
   },
   async resetRegistrations(password,year){
@@ -3443,17 +3508,15 @@ function exportCSV(){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='2027_학부모총회_등록부.csv';a.click();URL.revokeObjectURL(a.href);
 }
 refreshEventContent();
-(function initializeApp(){
+(async function initializeApp(){
+  // 서버의 현재 학년도 등록부를 기준으로 자동 통과 여부를 판단한다.
+  // 학년도가 바뀌거나 관리자가 등록부를 초기화하면 다시 등록 화면으로 갈 수 있다.
   const saved=localStorage.getItem(deviceKey);
   if(saved){
-    try{
-      const reg=JSON.parse(saved);
-      if(reg && reg.parentName && Array.isArray(reg.children) && reg.children.length){
-        showEvent();
-        return;
-      }
-    }catch(e){
-      console.warn('등록정보를 읽지 못해 첫 화면으로 이동합니다.', e);
+    const reg=await validateSavedRegistration();
+    if(reg && reg.parentName && Array.isArray(reg.children) && reg.children.length){
+      showAlreadyRegisteredMessage(reg);
+      return;
     }
   }
   goHome();
