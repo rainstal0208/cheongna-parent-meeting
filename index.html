@@ -427,11 +427,18 @@
       border:1px solid var(--line);border-radius:22px;padding:28px 30px;
     }
     .start-time-banner{
-      display:flex;align-items:baseline;justify-content:center;gap:8px;
+      display:flex;align-items:center;justify-content:center;
       background:var(--main);border:1px solid #c7ddcf;border-radius:18px;
       padding:18px 20px;margin:6px 0 18px;font-size:20px;font-weight:800;
+      text-align:center;
     }
-    .start-time-banner strong{font-size:38px;color:var(--main-deep);letter-spacing:-.04em}
+    .start-time-sentence{display:inline;word-break:keep-all;overflow-wrap:normal;line-height:1.55}
+    .start-time-banner strong{display:inline;white-space:nowrap;font-size:38px;color:var(--main-deep);letter-spacing:-.04em}
+    @media(max-width:520px){
+      .start-time-banner{padding:16px 12px;font-size:17px}
+      .start-time-banner strong{font-size:32px}
+      .start-time-sentence{white-space:nowrap}
+    }
     .compact-timeline .time-item{grid-template-columns:54px 1fr;padding:17px 0;align-items:center}
     .compact-timeline .time{
       width:34px;height:34px;border-radius:50%;display:grid;place-items:center;
@@ -1419,9 +1426,7 @@ window.supabaseClient = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
     <section id="schedule" class="section-card tab-panel">
       <h3 class="section-title">오늘의 식순</h3>
       <div class="start-time-banner">
-        <span>행사는</span>
-        <strong id="eventStartTime">13:00</strong>
-        <span>에 시작합니다.</span>
+        <span class="start-time-sentence">행사는 <strong id="eventStartTime">13:00</strong>에 시작합니다.</span>
       </div>
       <div id="publicScheduleList" class="timeline compact-timeline"></div>
     </section>
@@ -2930,16 +2935,17 @@ async function diagnoseRegistrations(){
 }
 
 async function renderTeacherTable(){
-  const tbody=document.getElementById('teacherTableBody')||document.querySelector('#registryTable tbody');
+  const tbody=document.getElementById('teacherTbody');
   if(!tbody)return;
 
   if(!activeAdminPassword){
-    tbody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:24px">관리자 비밀번호 확인 후 조회할 수 있습니다.</td></tr>';
+    tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:24px">관리자 비밀번호 확인 후 조회할 수 있습니다.</td></tr>';
     return;
   }
 
   const gradeSel=document.getElementById('filterGrade');
   const classSel=document.getElementById('filterClass');
+  const keyword=(document.getElementById('filterKeyword')?.value||'').trim().toLowerCase();
   const grade=gradeSel && gradeSel.value ? Number(gradeSel.value) : null;
   const classNo=classSel && classSel.value ? Number(classSel.value) : null;
 
@@ -2948,16 +2954,25 @@ async function renderTeacherTable(){
     const registrations=normalizeSupabaseRows(rows);
     window.currentTeacherRegistrations=registrations;
 
-    const flat=[];
+    let flat=[];
     registrations.forEach(r=>{
       r.children.forEach(c=>flat.push({r,c}));
     });
+    if(keyword){
+      flat=flat.filter(({r,c})=>
+        String(c.studentName||'').toLowerCase().includes(keyword) ||
+        String(r.parentName||'').toLowerCase().includes(keyword)
+      );
+    }
 
     const summary=document.getElementById('summaryBadge');
-    if(summary){ const years=[...new Set(registrations.map(r=>r.eventYear).filter(Boolean))].sort(); summary.textContent=`등록 ${registrations.length}건${years.length?' · '+years.join(', ')+'학년도':''}`; }
+    if(summary){
+      const years=[...new Set(registrations.map(r=>r.eventYear).filter(Boolean))].sort();
+      summary.textContent=`등록 ${registrations.length}건 · 자녀 ${flat.length}명${years.length?' · '+years.join(', ')+'학년도':''}`;
+    }
 
     if(!flat.length){
-      tbody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:24px">등록된 학부모가 없습니다.</td></tr>';
+      tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:24px">조건에 맞는 등록 내역이 없습니다.</td></tr>';
       return;
     }
 
@@ -2968,13 +2983,12 @@ async function renderTeacherTable(){
         <td>${c.classNo}반</td>
         <td>${c.studentName}</td>
         <td>${r.parentName}</td>
-        <td>${r.signature?'<img src="'+r.signature+'" alt="서명" style="max-width:90px;max-height:36px">':'-'}</td>
-        <td>${r.consent?'동의':'-'}</td>
         <td>${r.createdAt?new Date(r.createdAt).toLocaleString('ko-KR'):'-'}</td>
+        <td>${r.signature?'<img src="'+r.signature+'" alt="서명" style="max-width:90px;max-height:36px">':'-'}</td>
       </tr>
     `).join('');
   }catch(e){
-    tbody.innerHTML=`<tr><td colspan="8" style="text-align:center;padding:24px;color:#9d3d3d">등록부 조회 오류: ${e?.message||e}</td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="7" style="text-align:center;padding:24px;color:#9d3d3d">등록부 조회 오류: ${e?.message||e}</td></tr>`;
   }
 }
 
