@@ -332,25 +332,36 @@ async function handleRpc(db, name, p) {
     }
     case 'submit_parent_meeting_registration': {
       const year = Number(p.p_event_year);
-      const deviceId = String(p.p_device_id || '');
-      if (!year || !deviceId) throw Object.assign(new Error('등록 정보가 올바르지 않습니다.'), { status: 400 });
+      const deviceId = String(p.p_device_id || '').trim();
+      const parentName = String(p.p_parent_name || '').trim();
+      const signature = String(p.p_signature || '');
+      const children = Array.isArray(p.p_children) ? p.p_children : [];
+      if (!year || !deviceId || !parentName || !signature || !children.length) {
+        throw Object.assign(new Error('등록 필수 정보가 빠져 있습니다.'), { status: 400 });
+      }
+      if (signature.length > 900000) {
+        throw Object.assign(new Error('서명 이미지가 너무 큽니다. 페이지를 새로고침한 뒤 다시 서명해 주세요.'), { status: 413 });
+      }
       const id = `r_${year}_${sha256(deviceId).slice(0, 32)}`;
       const ref = db.collection('registrations').doc(id);
-      const snap = await ref.get();
-      if (snap.exists) throw Object.assign(new Error('duplicate registration'), { status: 409 });
-      await ref.create({
+      const doc = {
         eventYear: year,
-        parentName: String(p.p_parent_name || ''),
-        signature: String(p.p_signature || ''),
+        parentName,
+        signature,
         deviceId,
         consent: !!p.p_consent,
         createdAt: new Date().toISOString(),
-        children: (Array.isArray(p.p_children) ? p.p_children : []).map((c, i) => ({
+        children: children.map((c, i) => ({
           id: `${i + 1}`,
           grade: Number(c.grade),
           classNo: Number(c.class_no),
-          studentName: String(c.student_name || '')
+          studentName: String(c.student_name || '').trim()
         }))
+      };
+      await db.runTransaction(async tx => {
+        const snap = await tx.get(ref);
+        if (snap.exists) throw Object.assign(new Error('duplicate registration'), { status: 409 });
+        tx.set(ref, doc);
       });
       return id;
     }
@@ -401,13 +412,15 @@ export default async function handler(req, res) {
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
   try {
-    const { name, params = {} } = req.body || {};
+    let payload=req.body || {};
+    if(typeof payload === 'string'){ try{ payload=JSON.parse(payload); }catch{} }
+    const { name, params = {} } = payload;
     if (!name) return res.status(400).json({ error: '작업 이름이 없습니다.' });
     const db = getDb();
     const data = await handleRpc(db, name, params);
     return res.status(200).json({ data });
   } catch (e) {
     console.error('Firebase request failed:', e);
-    return res.status(e?.status || 500).json({ error: e?.message || String(e) });
+    return res.status(e?.status || 500).json({ error: e?.message || String(e), code: e?.code || null });
   }
 }
