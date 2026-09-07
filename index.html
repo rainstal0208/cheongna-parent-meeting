@@ -1914,7 +1914,7 @@ async function startFreshRegistration(){
   if(!saved?.registrationId){
     closeAlreadyModal();
     localStorage.removeItem(deviceKey);
-    goRegister();
+    startRegistration();
     return;
   }
   if(!confirm('기존 등록을 삭제하고 다시 등록하시겠습니까?\n잘못 입력한 내용을 새로 등록할 수 있습니다.')) return;
@@ -1922,7 +1922,7 @@ async function startFreshRegistration(){
     await firebaseBridge.deleteMyRegistration(saved.registrationId);
     localStorage.removeItem(deviceKey);
     closeAlreadyModal();
-    goRegister();
+    startRegistration();
   }catch(e){
     alert('기존 등록 삭제 중 오류가 발생했습니다.\n'+(e?.message||e));
   }
