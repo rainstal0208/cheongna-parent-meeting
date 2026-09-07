@@ -1,9 +1,7 @@
 import crypto from 'node:crypto';
 import { cert, getApps, initializeApp } from 'firebase-admin/app';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
-import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = 'https://prpkkohciadbmpcmoise.supabase.co';
 const FIREBASE_PROJECT_ID = 'cheongna-parent-meeting';
 
 function getDb() {
@@ -16,11 +14,6 @@ function getDb() {
   return getFirestore();
 }
 
-function getSupabase() {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!key) return null;
-  return createClient(SUPABASE_URL, key, { auth: { persistSession: false } });
-}
 
 function sha256(value) {
   return crypto.createHash('sha256').update(String(value ?? '')).digest('hex');
@@ -60,67 +53,30 @@ function normalizeResources(items) {
 async function verifyAdmin(db, password) {
   if (!password) return false;
 
-  // v55: Firebase 운영용 관리자 비밀번호는 Vercel Secret을 최우선으로 사용한다.
-  // 사용자가 Vercel에 기존 관리자 비밀번호를 직접 넣으면 Supabase 상태와 무관하게 로그인 가능하다.
   const envPassword = process.env.FIREBASE_ADMIN_PASSWORD;
+  if (!envPassword) {
+    throw Object.assign(
+      new Error('FIREBASE_ADMIN_PASSWORD 환경변수가 없습니다.'),
+      { status: 500 }
+    );
+  }
+
   const incoming = sha256(password);
-  const ref = db.collection('_system').doc('admin');
+  const expected = sha256(envPassword);
+  if (!safeEqualHex(incoming, expected)) return false;
 
-  if (envPassword) {
-    const expected = sha256(envPassword);
-    if (!safeEqualHex(incoming, expected)) return false;
-    await ref.set({
-      passwordHash: incoming,
-      updatedAt: FieldValue.serverTimestamp(),
-      source: 'vercel-secret'
-    }, { merge: true });
-    return true;
-  }
-
-  const snap = await ref.get();
-  if (snap.exists && snap.data()?.passwordHash && safeEqualHex(incoming, snap.data().passwordHash)) {
-    return true;
-  }
-
-  // 이전 단계 호환용 fallback. FIREBASE_ADMIN_PASSWORD 설정 후에는 이 경로를 사용하지 않는다.
-  const supabase = getSupabase();
-  if (!supabase) return false;
-  const { data, error } = await supabase.rpc('verify_parent_meeting_admin', { p_password: password });
-  if (error || !data) return false;
-  await ref.set({
+  await db.collection('_system').doc('admin').set({
     passwordHash: incoming,
-    migratedAt: FieldValue.serverTimestamp(),
-    repairedAt: FieldValue.serverTimestamp(),
-    source: 'supabase-fallback'
+    updatedAt: FieldValue.serverTimestamp(),
+    source: 'vercel-secret'
   }, { merge: true });
+
   return true;
 }
 
-async function migratePublicStateIfNeeded(db, year) {
-  const ref = configRef(db, year);
-  const existing = await ref.get();
-  if (existing.exists) return existing.data();
-
-  const supabase = getSupabase();
-  if (!supabase) return null;
-  const { data, error } = await supabase.rpc('get_parent_meeting_public_state', { p_event_year: year });
-  if (error || !data || !data.has_config) return null;
-
-  const migrated = {
-    settings: data.settings || {},
-    teachers: data.teachers || {},
-    resources: normalizeResources(data.resources),
-    layout: null,
-    migratedFromSupabase: true,
-    updatedAt: FieldValue.serverTimestamp()
-  };
-  await ref.set(migrated, { merge: true });
-  const fresh = await ref.get();
-  return fresh.data();
-}
-
 async function getPublicState(db, year) {
-  const data = await migratePublicStateIfNeeded(db, year);
+  const snap = await configRef(db, year).get();
+  const data = snap.exists ? snap.data() : null;
   return {
     has_config: !!data,
     settings: data?.settings || null,
@@ -130,97 +86,6 @@ async function getPublicState(db, year) {
   };
 }
 
-async function migrateOneRegistrationFromSupabase(db, year, deviceId, registrationId) {
-  const supabase = getSupabase();
-  if (!supabase || registrationId == null) return null;
-  const { data: row, error } = await supabase
-    .from('parent_meeting_registrations')
-    .select('id,event_year,parent_name,signature,device_id,consent,created_at')
-    .eq('id', registrationId)
-    .eq('event_year', year)
-    .maybeSingle();
-  if (error || !row) return null;
-  if (row.device_id && String(row.device_id) !== String(deviceId)) return null;
-
-  const { data: children = [] } = await supabase
-    .from('parent_meeting_children')
-    .select('id,registration_id,grade,class_no,student_name')
-    .eq('registration_id', row.id)
-    .order('id');
-
-  const docId = `legacy_${row.id}`;
-  const doc = {
-    legacyId: row.id,
-    eventYear: Number(row.event_year),
-    parentName: row.parent_name || '',
-    signature: row.signature || '',
-    deviceId: row.device_id || deviceId || '',
-    consent: !!row.consent,
-    createdAt: row.created_at || new Date().toISOString(),
-    children: (children || []).map(c => ({
-      id: c.id,
-      grade: Number(c.grade),
-      classNo: Number(c.class_no),
-      studentName: c.student_name || ''
-    }))
-  };
-  await db.collection('registrations').doc(docId).set(doc, { merge: true });
-  return { id: docId, ...doc };
-}
-
-async function ensureAllRegistrationsMigrated(db) {
-  const marker = db.collection('_system').doc('registrations_migration');
-  const markerSnap = await marker.get();
-  if (markerSnap.exists && markerSnap.data()?.done) return;
-
-  const supabase = getSupabase();
-  if (!supabase) return;
-  const { data: regs, error: regsError } = await supabase
-    .from('parent_meeting_registrations')
-    .select('id,event_year,parent_name,signature,device_id,consent,created_at')
-    .order('id');
-  if (regsError) throw regsError;
-  const { data: children, error: childError } = await supabase
-    .from('parent_meeting_children')
-    .select('id,registration_id,grade,class_no,student_name')
-    .order('id');
-  if (childError) throw childError;
-
-  const childMap = new Map();
-  for (const c of children || []) {
-    const key = String(c.registration_id);
-    if (!childMap.has(key)) childMap.set(key, []);
-    childMap.get(key).push({
-      id: c.id,
-      grade: Number(c.grade),
-      classNo: Number(c.class_no),
-      studentName: c.student_name || ''
-    });
-  }
-
-  let batch = db.batch();
-  let count = 0;
-  for (const r of regs || []) {
-    const ref = db.collection('registrations').doc(`legacy_${r.id}`);
-    batch.set(ref, {
-      legacyId: r.id,
-      eventYear: Number(r.event_year),
-      parentName: r.parent_name || '',
-      signature: r.signature || '',
-      deviceId: r.device_id || '',
-      consent: !!r.consent,
-      createdAt: r.created_at || new Date().toISOString(),
-      children: childMap.get(String(r.id)) || []
-    }, { merge: true });
-    count++;
-    if (count % 400 === 0) {
-      await batch.commit();
-      batch = db.batch();
-    }
-  }
-  if (count % 400 !== 0) await batch.commit();
-  await marker.set({ done: true, count, finishedAt: FieldValue.serverTimestamp() }, { merge: true });
-}
 
 function registrationPayload(doc) {
   if (!doc) return null;
@@ -251,8 +116,6 @@ async function findDeviceRegistration(db, year, deviceId, registrationId) {
         if (Number(data.eventYear) === Number(year) && (!data.deviceId || String(data.deviceId) === String(deviceId))) return data;
       }
     }
-    const migrated = await migrateOneRegistrationFromSupabase(db, year, deviceId, registrationId);
-    if (migrated) return migrated;
   }
 
   const deterministicId = `r_${year}_${sha256(deviceId).slice(0, 32)}`;
@@ -398,14 +261,6 @@ async function handleRpc(db, name, p) {
     }
     case 'get_parent_meeting_registrations_v2': {
       if (!(await verifyAdmin(db, p.p_password))) throw Object.assign(new Error('관리자 비밀번호가 올바르지 않습니다.'), { status: 401 });
-
-      // v56: Supabase는 이전 데이터 마이그레이션용 보조 경로일 뿐이다.
-      // Supabase 연결이 끊겼거나 fetch가 실패해도 Firebase 등록부 조회는 계속 진행한다.
-      try {
-        await ensureAllRegistrationsMigrated(db);
-      } catch (migrationError) {
-        console.warn('Legacy Supabase registration migration skipped:', migrationError?.message || migrationError);
-      }
 
       let q = db.collection('registrations');
       if (p.p_event_year != null) q = q.where('eventYear', '==', Number(p.p_event_year));
