@@ -398,7 +398,15 @@ async function handleRpc(db, name, p) {
     }
     case 'get_parent_meeting_registrations_v2': {
       if (!(await verifyAdmin(db, p.p_password))) throw Object.assign(new Error('관리자 비밀번호가 올바르지 않습니다.'), { status: 401 });
-      await ensureAllRegistrationsMigrated(db);
+
+      // v56: Supabase는 이전 데이터 마이그레이션용 보조 경로일 뿐이다.
+      // Supabase 연결이 끊겼거나 fetch가 실패해도 Firebase 등록부 조회는 계속 진행한다.
+      try {
+        await ensureAllRegistrationsMigrated(db);
+      } catch (migrationError) {
+        console.warn('Legacy Supabase registration migration skipped:', migrationError?.message || migrationError);
+      }
+
       let q = db.collection('registrations');
       if (p.p_event_year != null) q = q.where('eventYear', '==', Number(p.p_event_year));
       const snap = await q.get();
