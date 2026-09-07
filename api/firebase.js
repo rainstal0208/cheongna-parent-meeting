@@ -62,16 +62,23 @@ async function verifyAdmin(db, password) {
   const ref = db.collection('_system').doc('admin');
   const snap = await ref.get();
   const incoming = sha256(password);
-  if (snap.exists && snap.data()?.passwordHash) {
-    return safeEqualHex(incoming, snap.data().passwordHash);
+
+  // Firebase에 저장된 비밀번호가 맞으면 즉시 통과.
+  if (snap.exists && snap.data()?.passwordHash && safeEqualHex(incoming, snap.data().passwordHash)) {
+    return true;
   }
 
-  // 최초 1회만 기존 Supabase 관리자 비밀번호를 검증하여 Firebase로 이전한다.
+  // Firebase에 잘못된 해시가 들어갔거나 아직 이전 전이라도,
+  // 기존 Supabase 관리자 비밀번호가 맞으면 Firebase 해시를 올바른 값으로 복구한다.
   const supabase = getSupabase();
   if (!supabase) return false;
   const { data, error } = await supabase.rpc('verify_parent_meeting_admin', { p_password: password });
   if (error || !data) return false;
-  await ref.set({ passwordHash: incoming, migratedAt: FieldValue.serverTimestamp() }, { merge: true });
+  await ref.set({
+    passwordHash: incoming,
+    migratedAt: FieldValue.serverTimestamp(),
+    repairedAt: FieldValue.serverTimestamp()
+  }, { merge: true });
   return true;
 }
 
