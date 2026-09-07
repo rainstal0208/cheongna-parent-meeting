@@ -388,6 +388,17 @@ async function handleRpc(db, name, p) {
 }
 
 export default async function handler(req, res) {
+  if (req.method === 'GET' && String(req.query?.health || '') === '1') {
+    try {
+      const db = getDb();
+      await db.collection('_system').doc('healthcheck').get();
+      return res.status(200).json({ ok: true, firestore: true, projectId: FIREBASE_PROJECT_ID });
+    } catch (e) {
+      console.error('Firebase health check failed:', e);
+      return res.status(500).json({ ok: false, error: e?.message || String(e) });
+    }
+  }
+
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
   try {
     const { name, params = {} } = req.body || {};
@@ -396,7 +407,7 @@ export default async function handler(req, res) {
     const data = await handleRpc(db, name, params);
     return res.status(200).json({ data });
   } catch (e) {
-    console.error(e);
+    console.error('Firebase request failed:', e);
     return res.status(e?.status || 500).json({ error: e?.message || String(e) });
   }
 }
