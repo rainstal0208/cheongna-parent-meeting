@@ -1312,14 +1312,6 @@
 </style>
 
 
-<script type="module">
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-
-const SUPABASE_URL = "https://prpkkohciadbmpcmoise.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_3zgIGY7acSXZ-99BvkxxFg_CGzBEPUV";
-window.supabaseClient = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
-</script>
-
 <script>
 (function(){
   async function revealPrincipalWhenFontReady(){
@@ -1684,25 +1676,10 @@ window.supabaseClient = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
       <section id="settingsLayout" class="settings-panel hidden">
         <button class="settings-back-btn no-print" onclick="openSettingsPanel('home')">← 설정으로 돌아가기</button>
         <section class="section-card no-print">
-          <h3 class="section-title" style="font-size:24px">올해 배치도 등록</h3>
-          <p class="section-desc">
-            교실배치도 PDF를 등록하면 첫 페이지를 1~5층으로 자동 분할합니다.
-            표 바깥 테두리는 제외하고 각 층 칸 안쪽 내용만 잘라서 표시합니다.
-          </p>
-
-          <label class="layout-upload-zone" for="layoutPdfInput">
-            <strong>교실배치도 PDF 선택</strong>
-            <span>학교 표준 배치도 PDF를 선택하면 자동으로 1~5층 이미지를 만듭니다.</span>
-            <input id="layoutPdfInput" type="file" accept="application/pdf,.pdf" onchange="handleLayoutPdfUpload(this.files?.[0])">
-          </label>
-
-          <div id="layoutUploadStatus" class="layout-upload-status">아직 새 배치도를 등록하지 않았습니다.</div>
+          <h3 class="section-title" style="font-size:24px">올해 배치도</h3>
+          <p class="section-desc">배치도는 GitHub 저장소의 1~5층 이미지 파일을 사용합니다. 새 학년도에는 <code>floor-default-1.png</code>부터 <code>floor-default-5.png</code>까지 파일만 교체하면 됩니다.</p>
+          <div id="layoutUploadStatus" class="layout-upload-status success">GitHub/Vercel 정적 배치도 사용 중</div>
           <div id="layoutPreviewGrid" class="layout-preview-grid"></div>
-
-          <div class="section-save-row" style="gap:8px;flex-wrap:wrap">
-            <button class="ghost" type="button" onclick="downloadAllLayoutFloors()">1~5층 모두 다운로드</button>
-            <button class="ghost" type="button" onclick="clearUploadedLayout()">등록한 배치도 삭제</button>
-          </div>
         </section>
       </section>
 
@@ -1849,12 +1826,12 @@ async function submitRegistration(){
   }
 
   try{
-    const registrationId=await supabaseBridge.submitRegistration({
+    const registrationId=await firebaseBridge.submitRegistration({
       parentName,signature,consent,children
     });
 
     // 이 기기에서 재접속할 때 바로 안내 화면으로 들어갈 수 있도록
-    // 필요한 최소 정보만 로컬에 저장한다. 실제 등록부 원본은 Supabase에 저장됨.
+    // 필요한 최소 정보만 로컬에 저장한다. 실제 등록부 원본은 Firebase Firestore에 저장됨.
     localStorage.setItem(deviceKey,JSON.stringify({
       registrationId,
       parentName,
@@ -1907,7 +1884,7 @@ async function startFreshRegistration(){
   }
   if(!confirm('기존 등록을 삭제하고 다시 등록하시겠습니까?\n잘못 입력한 내용을 새로 등록할 수 있습니다.')) return;
   try{
-    await supabaseBridge.deleteMyRegistration(saved.registrationId);
+    await firebaseBridge.deleteMyRegistration(saved.registrationId);
     localStorage.removeItem(deviceKey);
     closeAlreadyModal();
     goRegister();
@@ -1921,7 +1898,7 @@ async function validateSavedRegistration(){
   try{ saved=JSON.parse(localStorage.getItem(deviceKey)||'null'); }catch(e){}
   if(!saved?.registrationId) return null;
   try{
-    const found=await supabaseBridge.getMyRegistration(saved.registrationId);
+    const found=await firebaseBridge.getMyRegistration(saved.registrationId);
     if(!found){
       localStorage.removeItem(deviceKey);
       return null;
@@ -1936,7 +1913,7 @@ async function validateSavedRegistration(){
         classNo:Number(c.class_no ?? c.classNo),
         studentName:c.student_name ?? c.studentName ?? ''
       })),
-      eventYear:Number(reg.event_year ?? supabaseBridge.getEventYear()),
+      eventYear:Number(reg.event_year ?? firebaseBridge.getEventYear()),
       createdAt:reg.created_at ?? saved.createdAt
     };
     localStorage.setItem(deviceKey,JSON.stringify(normalized));
@@ -2245,9 +2222,9 @@ async function saveEventInfo(){
     s.startTime=document.getElementById('eventStartInput')?.value||'13:00';
     s.eventDate=document.getElementById('eventDateInput')?.value||'2027-03-20';
     // 총회 정보는 전용 RPC로 서버 JSON의 해당 항목만 직접 갱신한다.
-    await supabaseBridge.rpc('save_parent_meeting_event_info',{
+    await firebaseBridge.rpc('save_parent_meeting_event_info',{
       p_password:activeAdminPassword,
-      p_event_year:this.getEventYear(),
+      p_event_year:firebaseBridge.getEventYear(),
       p_event_date:s.eventDate,
       p_start_time:s.startTime,
       p_dest1:s["1"],
@@ -2446,29 +2423,21 @@ const sharedState = {
   layout:null,
   loaded:false
 };
-async function waitForSupabaseClient(){
-  for(let i=0;i<80;i++){
-    if(window.supabaseClient) return window.supabaseClient;
-    await new Promise(r=>setTimeout(r,50));
-  }
-  throw new Error('Supabase 연결을 준비하지 못했습니다.');
-}
 async function loadSharedState(){
   try{
-    await waitForSupabaseClient();
-    const year=2027;
-    const data=await supabaseBridge.rpc('get_parent_meeting_public_state',{p_event_year:year});
+    const year=firebaseBridge.getEventYear();
+    const data=await firebaseBridge.rpc('get_parent_meeting_public_state',{p_event_year:year});
     if(data){
       sharedState.hasConfig=!!data.has_config;
       sharedState.settings=data.settings||null;
       sharedState.teachers=data.teachers||null;
       sharedState.resources=Array.isArray(data.resources)?data.resources:[];
-      sharedState.layout=data.layout||null;
+      sharedState.layout=null;
       sharedState.loaded=true;
       if(sharedState.settings) localStorage.setItem(settingsKey,JSON.stringify(sharedState.settings));
       if(sharedState.teachers) localStorage.setItem(teacherSettingsKey,JSON.stringify(sharedState.teachers));
       localStorage.setItem(resourceSettingsKey,JSON.stringify(sharedState.resources));
-      if(sharedState.layout) localStorage.setItem(layoutMetaKey,JSON.stringify(sharedState.layout));
+      localStorage.removeItem(layoutMetaKey);
       refreshEventContent();
       // 서버에서 최신 총회 정보를 받은 뒤 관리자 입력폼도 최신값으로 다시 채운다.
       if(document.getElementById('eventDateInput')) loadEventSettingsForm();
@@ -2479,9 +2448,9 @@ async function loadSharedState(){
 }
 async function saveSharedConfig(settings,teachers){
   if(!activeAdminPassword) throw new Error('관리자 로그인이 필요합니다.');
-  await supabaseBridge.rpc('save_parent_meeting_config',{
+  await firebaseBridge.rpc('save_parent_meeting_config',{
     p_password:activeAdminPassword,
-    p_event_year:this.getEventYear(),
+    p_event_year:firebaseBridge.getEventYear(),
     p_settings:settings,
     p_teachers:teachers
   });
@@ -2505,39 +2474,15 @@ async function saveResourceItems(items){
   if(!activeAdminPassword)return;
   const orderedIds=items.map(x=>Number(x.id)).filter(Number.isFinite);
   if(orderedIds.length){
-    await supabaseBridge.rpc('reorder_parent_meeting_resources',{
-      p_password:activeAdminPassword,p_event_year:this.getEventYear(),p_ids:orderedIds
+    await firebaseBridge.rpc('reorder_parent_meeting_resources',{
+      p_password:activeAdminPassword,p_event_year:firebaseBridge.getEventYear(),p_ids:orderedIds
     });
     await loadSharedState();
   }
 }
 
-async function requestStorageAction(action,path){
-  const res=await fetch('/api/storage-sign',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({password:activeAdminPassword,action,path})
-  });
-  const body=await res.json().catch(()=>({}));
-  if(!res.ok) throw new Error(body.error||'파일 저장 서버 오류');
-  return body;
-}
-function safeStorageName(name){
-  const ext=(name.split('.').pop()||'bin').replace(/[^a-zA-Z0-9]/g,'').slice(0,8)||'bin';
-  return `${Date.now()}-${crypto.randomUUID?.()||Math.random().toString(36).slice(2)}.${ext}`;
-}
-async function uploadSharedFile(file,prefix='resources'){
-  if(!activeAdminPassword) throw new Error('관리자 로그인이 필요합니다.');
-  await waitForSupabaseClient();
-  const path=`2027/${prefix}/${safeStorageName(file.name)}`;
-  const signed=await requestStorageAction('upload',path);
-  const {error}=await window.supabaseClient.storage
-    .from('parent-meeting-assets')
-    .uploadToSignedUrl(path,signed.token,file,{contentType:file.type});
-  if(error) throw error;
-  const pub=window.supabaseClient.storage.from('parent-meeting-assets').getPublicUrl(path);
-  return {path,url:pub.data.publicUrl};
-}
+// Firebase Spark 구성에서는 파일 Storage를 사용하지 않습니다.
+// 교육자료는 학교 홈페이지 링크, 배치도는 GitHub/Vercel 정적 이미지를 사용합니다.
 
 async function addResourceItem(){
   const input=document.getElementById('resourceLinkInput');
@@ -2547,9 +2492,9 @@ async function addResourceItem(){
   if(!activeAdminPassword){alert('관리자 로그인이 필요합니다.');return}
   try{
     const count=getResourceItems().length+1;
-    await supabaseBridge.rpc('save_parent_meeting_resource',{
+    await firebaseBridge.rpc('save_parent_meeting_resource',{
       p_password:activeAdminPassword,
-      p_event_year:supabaseBridge.getEventYear(),
+      p_event_year:firebaseBridge.getEventYear(),
       p_title:`교육자료 바로가기(${count})`,
       p_dept:'',
       p_type:'link',
@@ -2573,7 +2518,7 @@ async function deleteResourceItem(id){
   if(!item)return;
   if(!confirm('이 교육자료 바로가기를 삭제할까요?'))return;
   try{
-    await supabaseBridge.rpc('delete_parent_meeting_resource',{
+    await firebaseBridge.rpc('delete_parent_meeting_resource',{
       p_password:activeAdminPassword,p_resource_id:Number(id)
     });
     await loadSharedState();
@@ -2957,7 +2902,7 @@ async function teacherLogin(){
   const pw=(document.getElementById('teacherPassword')?.value||'').trim();
   if(!pw){alert('관리자 비밀번호를 입력해 주세요.');return;}
   try{
-    const ok=await supabaseBridge.verifyAdmin(pw);
+    const ok=await firebaseBridge.verifyAdmin(pw);
     if(!ok){alert('관리자 비밀번호가 올바르지 않습니다.');return;}
     activeAdminPassword=pw;
     await loadSharedState();
@@ -2975,11 +2920,11 @@ async function teacherLogin(){
 async function diagnoseRegistrations(){
   if(!activeAdminPassword){alert('관리자 로그인이 필요합니다.');return;}
   try{
-    const rows=await supabaseBridge.fetchRegistrations(activeAdminPassword,null,null,null);
-    const regs=normalizeSupabaseRows(rows);
+    const rows=await firebaseBridge.fetchRegistrations(activeAdminPassword,null,null,null);
+    const regs=normalizeRegistrationRows(rows);
     const childCount=regs.reduce((n,r)=>n+(r.children?.length||0),0);
     const years=[...new Set(regs.map(r=>r.eventYear).filter(Boolean))].sort();
-    alert(`Supabase 등록 데이터\n등록 ${regs.length}건\n자녀 ${childCount}명\n학년도 ${years.length?years.join(', '):'없음'}`);
+    alert(`Firebase 등록 데이터\n등록 ${regs.length}건\n자녀 ${childCount}명\n학년도 ${years.length?years.join(', '):'없음'}`);
   }catch(e){
     alert('등록 데이터 조회 오류\n'+(e?.message||e));
   }
@@ -3001,8 +2946,8 @@ async function renderTeacherTable(){
   const classNo=classSel && classSel.value ? Number(classSel.value) : null;
 
   try{
-    const rows=await supabaseBridge.fetchRegistrations(activeAdminPassword,null,grade,classNo);
-    const registrations=normalizeSupabaseRows(rows);
+    const rows=await firebaseBridge.fetchRegistrations(activeAdminPassword,null,grade,classNo);
+    const registrations=normalizeRegistrationRows(rows);
     window.currentTeacherRegistrations=registrations;
 
     let flat=[];
@@ -3125,8 +3070,8 @@ async function confirmResetRegistry(){
     return;
   }
   try{
-    const year=supabaseBridge.getEventYear();
-    const deleted=await supabaseBridge.resetRegistrations(activeAdminPassword,year);
+    const year=firebaseBridge.getEventYear();
+    const deleted=await firebaseBridge.resetRegistrations(activeAdminPassword,year);
     closeResetRegistryModal?.();
     await renderTeacherTable();
     alert(`${year}학년도 등록부 ${deleted}건을 초기화했습니다.`);
@@ -3183,81 +3128,12 @@ async function clearLayoutFloorBlobs(){
     tx.onerror=()=>reject(tx.error);
   });
 }
-async function canvasToBlob(canvas){
-  return new Promise((resolve,reject)=>{
-    canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('이미지 변환 실패')),'image/png',0.96);
-  });
-}
-async function handleLayoutPdfUpload(file){
-  if(!file)return;
-  if(file.type!=='application/pdf' && !file.name.toLowerCase().endsWith('.pdf')){
-    alert('PDF 파일을 선택해 주세요.'); return;
-  }
-  const status=document.getElementById('layoutUploadStatus');
-  status.className='layout-upload-status working';
-  status.textContent='PDF를 읽고 1~5층으로 자동 분할하여 서버에 저장하는 중입니다...';
-  try{
-    const pdfjsLib=await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.7.76/pdf.min.mjs');
-    pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.7.76/pdf.worker.min.mjs';
-    const buffer=await file.arrayBuffer();
-    const pdf=await pdfjsLib.getDocument({data:buffer}).promise;
-    const page=await pdf.getPage(1);
-    const viewport=page.getViewport({scale:2.5});
-    const source=document.createElement('canvas');
-    source.width=Math.ceil(viewport.width); source.height=Math.ceil(viewport.height);
-    const ctx=source.getContext('2d',{alpha:false});
-    await page.render({canvasContext:ctx,viewport}).promise;
-
-    const refW=1428, refH=2019, inset=5;
-    const refBoxes={1:[74,186,703,765],2:[713,186,1343,765],3:[74,775,703,1294],4:[713,775,1343,1294],5:[74,1304,703,1823]};
-    await clearLayoutFloorBlobs();
-    const floors={};
-    const paths={};
-    for(let floor=1;floor<=5;floor++){
-      const [rx1,ry1,rx2,ry2]=refBoxes[floor];
-      const sx=Math.round(source.width*(rx1/refW)), sy=Math.round(source.height*(ry1/refH));
-      const sw=Math.round(source.width*((rx2-rx1)/refW)), sh=Math.round(source.height*((ry2-ry1)/refH));
-      const out=document.createElement('canvas'); out.width=sw; out.height=sh;
-      const octx=out.getContext('2d',{alpha:false}); octx.fillStyle='#fff'; octx.fillRect(0,0,sw,sh);
-      octx.drawImage(source,sx,sy,sw,sh,0,0,sw,sh);
-      const blob=await canvasToBlob(out);
-      await storeLayoutFloorBlob(floor,blob);
-      const f=new File([blob],`floor-${floor}.png`,{type:'image/png'});
-      const up=await uploadSharedFile(f,'layout');
-      floors[String(floor)]=up.url; paths[String(floor)]=up.path;
-    }
-    const layout={fileName:file.name,savedAt:new Date().toISOString(),floors,paths};
-    await supabaseBridge.rpc('save_parent_meeting_layout',{
-      p_password:activeAdminPassword,p_event_year:this.getEventYear(),p_layout:layout
-    });
-    localStorage.setItem(layoutMetaKey,JSON.stringify(layout));
-    await loadSharedState();
-    status.className='layout-upload-status success';
-    status.textContent=`등록 완료: ${file.name} · 모든 기기에서 공용 사용`;
-    await renderLayoutSettings(); await renderFloorPlan();
-  }catch(e){
-    console.error(e);
-    status.className='layout-upload-status';
-    status.textContent='배치도 처리 또는 서버 저장 중 오류가 발생했습니다.';
-    alert('배치도 저장 오류\n'+(e?.message||e));
-  }
-}
 async function renderLayoutSettings(){
   const status=document.getElementById('layoutUploadStatus');
   const grid=document.getElementById('layoutPreviewGrid');
   if(!status||!grid)return;
-
-  let meta=null;
-  try{meta=JSON.parse(localStorage.getItem(layoutMetaKey)||'null')}catch(e){}
-
-  if(meta){
-    status.className='layout-upload-status success';
-    status.textContent=`현재 등록된 파일: ${meta.fileName}`;
-  }else{
-    status.className='layout-upload-status';
-    status.textContent='새 PDF를 등록하지 않은 경우 앱에 기본으로 포함된 배치도가 표시됩니다.';
-  }
-
+  status.className='layout-upload-status success';
+  status.textContent='GitHub/Vercel 정적 배치도 사용 중';
   grid.innerHTML='';
   for(let floor=1;floor<=5;floor++){
     const card=document.createElement('div');
@@ -3266,83 +3142,26 @@ async function renderLayoutSettings(){
     title.textContent=`${floor}층`;
     const img=document.createElement('img');
     img.alt=`${floor}층 배치도 미리보기`;
-    try{
-      const blob=await getLayoutFloorBlob(floor);
-      if(blob){
-        const url=URL.createObjectURL(blob);
-        img.src=url;
-        img.onload=()=>URL.revokeObjectURL(url);
-      }else{
-        img.src=`floor-default-${floor}.png`;
-      }
-    }catch(e){
-      img.src=`floor-default-${floor}.png`;
-    }
-    const downloadBtn=document.createElement('button');
-    downloadBtn.type='button';
-    downloadBtn.className='ghost';
-    downloadBtn.style.marginTop='8px';
-    downloadBtn.style.width='100%';
-    downloadBtn.textContent=`${floor}층 이미지 다운로드`;
-    downloadBtn.onclick=()=>downloadLayoutFloor(floor);
-    card.append(title,img,downloadBtn);
+    img.src=`floor-default-${floor}.png`;
+    card.append(title,img);
     grid.appendChild(card);
   }
-}
-
-async function downloadLayoutFloor(floor){
-  try{
-    const blob=await getLayoutFloorBlob(floor);
-    if(!blob){
-      alert(`${floor}층 배치도 이미지를 찾지 못했습니다.`);
-      return;
-    }
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    a.href=url;
-    a.download=`cheongna-floor-${floor}.png`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url),1000);
-  }catch(e){
-    console.error(e);
-    alert('배치도 이미지 다운로드 중 오류가 발생했습니다.\n'+(e?.message||e));
-  }
-}
-
-async function downloadAllLayoutFloors(){
-  for(let floor=1;floor<=5;floor++){
-    await downloadLayoutFloor(floor);
-    await new Promise(r=>setTimeout(r,250));
-  }
-}
-
-async function clearUploadedLayout(){
-  if(!confirm('등록한 올해 배치도를 삭제하고 앱의 기본 배치도로 돌아갈까요?'))return;
-  try{
-    const paths=sharedState.layout?.paths||{};
-    for(const path of Object.values(paths)){ try{await requestStorageAction('delete',path)}catch(e){} }
-    await supabaseBridge.rpc('save_parent_meeting_layout',{
-      p_password:activeAdminPassword,p_event_year:this.getEventYear(),p_layout:null
-    });
-    await clearLayoutFloorBlobs();
-    localStorage.removeItem(layoutMetaKey);
-    sharedState.layout=null;
-    await renderLayoutSettings(); await renderFloorPlan();
-  }catch(e){alert('배치도 삭제 오류\n'+(e?.message||e));}
 }
 
 window.addEventListener('resize',fitFloorViewerToScreen);
 window.addEventListener('orientationchange',()=>setTimeout(fitFloorViewerToScreen,120));
 
 
-const supabaseBridge = {
-  async rpc(name, params){
-    if(!window.supabaseClient) throw new Error('Supabase 연결이 아직 준비되지 않았습니다.');
-    const {data,error}=await window.supabaseClient.rpc(name,params);
-    if(error) throw error;
-    return data;
+const firebaseBridge = {
+  async rpc(name, params={}){
+    const res=await fetch('/api/firebase',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({name,params})
+    });
+    const body=await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(body.error||'Firebase 서버 요청에 실패했습니다.');
+    return body.data;
   },
   getEventYear(){
     try{
@@ -3381,37 +3200,27 @@ const supabaseBridge = {
   },
   async fetchRegistrations(password,year=null,grade=null,classNo=null){
     return await this.rpc('get_parent_meeting_registrations_v2',{
-      p_password:password,
-      p_event_year:year,
-      p_grade:grade,
-      p_class_no:classNo
+      p_password:password,p_event_year:year,p_grade:grade,p_class_no:classNo
     });
   },
   async getMyRegistration(registrationId){
     return await this.rpc('get_parent_meeting_device_registration',{
-      p_event_year:this.getEventYear(),
-      p_device_id:this.getDeviceId(),
-      p_registration_id:registrationId||null
+      p_event_year:this.getEventYear(),p_device_id:this.getDeviceId(),p_registration_id:registrationId||null
     });
   },
   async deleteMyRegistration(registrationId){
     return await this.rpc('delete_parent_meeting_device_registration',{
-      p_event_year:this.getEventYear(),
-      p_device_id:this.getDeviceId(),
-      p_registration_id:registrationId||null
+      p_event_year:this.getEventYear(),p_device_id:this.getDeviceId(),p_registration_id:registrationId||null
     });
   },
   async resetRegistrations(password,year){
-    return await this.rpc('reset_parent_meeting_registrations',{
-      p_password:password,
-      p_event_year:year
-    });
+    return await this.rpc('reset_parent_meeting_registrations',{p_password:password,p_event_year:year});
   }
 };
 
 let activeAdminPassword='';
 
-function normalizeSupabaseRows(rows){
+function normalizeRegistrationRows(rows){
   if(rows==null) return [];
   if(typeof rows==='string'){
     try{ rows=JSON.parse(rows); }catch(e){ return []; }
@@ -3471,7 +3280,7 @@ async function verifyAdminPassword(){
   const pw=(document.getElementById('adminPassword')?.value||document.getElementById('teacherPassword')?.value||'').trim();
   if(!pw){alert('관리자 비밀번호를 입력해 주세요.');return;}
   try{
-    const ok=await supabaseBridge.verifyAdmin(pw);
+    const ok=await firebaseBridge.verifyAdmin(pw);
     if(!ok){alert('관리자 비밀번호가 올바르지 않습니다.');return;}
     activeAdminPassword=pw;
     document.getElementById('adminLoginModal')?.classList.add('hidden');
