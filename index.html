@@ -1248,6 +1248,27 @@
     .resource-link-btn:hover{filter:brightness(.98)}
     .resource-url-text{display:block;max-width:680px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:13px;margin-top:4px}
     @media(max-width:760px){.resource-link-btn{width:100%;font-size:17px;min-height:56px}}
+
+/* v55: public teacher table class-number column must never wrap (e.g. 10반) */
+#teachers .teacher-grid th:first-child,
+#teachers .teacher-grid td:first-child{
+  white-space:nowrap!important;
+  word-break:keep-all!important;
+  overflow-wrap:normal!important;
+  min-width:54px!important;
+  width:54px!important;
+  max-width:54px!important;
+}
+@media(max-width:560px){
+  #teachers .teacher-grid th:first-child,
+  #teachers .teacher-grid td:first-child{
+    min-width:48px!important;
+    width:48px!important;
+    max-width:48px!important;
+    font-size:12px!important;
+  }
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
