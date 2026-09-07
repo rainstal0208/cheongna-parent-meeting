@@ -1785,6 +1785,20 @@ function clearSignature(){ if(!ctx||!canvas)return; ctx.clearRect(0,0,canvas.wid
 function getRecords(){ return JSON.parse(localStorage.getItem(storageKey)||'[]'); }
 function saveRecords(records){ localStorage.setItem(storageKey,JSON.stringify(records)); }
 
+function getCompactSignatureDataUrl(){
+  if(!canvas) return '';
+  const maxWidth=900;
+  const scale=Math.min(1,maxWidth/canvas.width);
+  const out=document.createElement('canvas');
+  out.width=Math.max(1,Math.round(canvas.width*scale));
+  out.height=Math.max(1,Math.round(canvas.height*scale));
+  const octx=out.getContext('2d');
+  octx.fillStyle='#ffffff';
+  octx.fillRect(0,0,out.width,out.height);
+  octx.drawImage(canvas,0,0,out.width,out.height);
+  return out.toDataURL('image/png');
+}
+
 async function submitRegistration(){
   const parentName=(document.getElementById('parentName')?.value||'').trim();
   const consent=!!document.getElementById('consentCheck')?.checked;
@@ -1816,7 +1830,7 @@ async function submitRegistration(){
     return;
   }
 
-  const signature=canvas.toDataURL('image/png');
+  const signature=getCompactSignatureDataUrl();
 
   const btn=document.querySelector('#registerPage .submit-row .primary');
   const originalText=btn?.textContent||'등록 완료';
@@ -3159,8 +3173,13 @@ const firebaseBridge = {
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({name,params})
     });
-    const body=await res.json().catch(()=>({}));
-    if(!res.ok) throw new Error(body.error||'Firebase 서버 요청에 실패했습니다.');
+    const raw=await res.text();
+    let body={};
+    try{ body=raw?JSON.parse(raw):{}; }catch(e){}
+    if(!res.ok){
+      const detail=body.error||body.message||raw||`HTTP ${res.status}`;
+      throw new Error(detail);
+    }
     return body.data;
   },
   getEventYear(){
