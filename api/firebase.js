@@ -59,17 +59,30 @@ function normalizeResources(items) {
 
 async function verifyAdmin(db, password) {
   if (!password) return false;
-  const ref = db.collection('_system').doc('admin');
-  const snap = await ref.get();
-  const incoming = sha256(password);
 
-  // Firebase에 저장된 비밀번호가 맞으면 즉시 통과.
+  // v55: Firebase 운영용 관리자 비밀번호는 Vercel Secret을 최우선으로 사용한다.
+  // 사용자가 Vercel에 기존 관리자 비밀번호를 직접 넣으면 Supabase 상태와 무관하게 로그인 가능하다.
+  const envPassword = process.env.FIREBASE_ADMIN_PASSWORD;
+  const incoming = sha256(password);
+  const ref = db.collection('_system').doc('admin');
+
+  if (envPassword) {
+    const expected = sha256(envPassword);
+    if (!safeEqualHex(incoming, expected)) return false;
+    await ref.set({
+      passwordHash: incoming,
+      updatedAt: FieldValue.serverTimestamp(),
+      source: 'vercel-secret'
+    }, { merge: true });
+    return true;
+  }
+
+  const snap = await ref.get();
   if (snap.exists && snap.data()?.passwordHash && safeEqualHex(incoming, snap.data().passwordHash)) {
     return true;
   }
 
-  // Firebase에 잘못된 해시가 들어갔거나 아직 이전 전이라도,
-  // 기존 Supabase 관리자 비밀번호가 맞으면 Firebase 해시를 올바른 값으로 복구한다.
+  // 이전 단계 호환용 fallback. FIREBASE_ADMIN_PASSWORD 설정 후에는 이 경로를 사용하지 않는다.
   const supabase = getSupabase();
   if (!supabase) return false;
   const { data, error } = await supabase.rpc('verify_parent_meeting_admin', { p_password: password });
@@ -77,7 +90,8 @@ async function verifyAdmin(db, password) {
   await ref.set({
     passwordHash: incoming,
     migratedAt: FieldValue.serverTimestamp(),
-    repairedAt: FieldValue.serverTimestamp()
+    repairedAt: FieldValue.serverTimestamp(),
+    source: 'supabase-fallback'
   }, { merge: true });
   return true;
 }
