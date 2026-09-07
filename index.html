@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>2027학년도 학부모총회 | 인천청라고등학교</title>
+  <link rel="icon" type="image/png" href="cheongna-logo.png">
+  <link rel="apple-touch-icon" href="cheongna-logo.png">
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Nanum+Brush+Script&display=block');
     :root{
@@ -1240,6 +1242,12 @@
   #registerPage input,#registerPage select{min-height:50px;font-size:16px}
 }
 
+
+    .resource-link-buttons{display:grid;gap:12px;max-width:760px}
+    .resource-link-btn{display:flex;align-items:center;justify-content:center;min-height:58px;padding:14px 18px;border-radius:16px;background:var(--main-deep);color:#fff;text-decoration:none;font-weight:900;font-size:18px;border:1px solid var(--main-deep)}
+    .resource-link-btn:hover{filter:brightness(.98)}
+    .resource-url-text{display:block;max-width:680px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:13px;margin-top:4px}
+    @media(max-width:760px){.resource-link-btn{width:100%;font-size:17px;min-height:56px}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
@@ -1499,8 +1507,8 @@ window.supabaseClient = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
     <section id="resources" class="section-card tab-panel hidden">
       <h3 class="section-title">학부모 교육자료</h3>
-      <div id="resourceTabs" class="resource-tabs no-print"></div>
-      <div id="resourcePanels"></div>
+      <p class="section-desc">학교 홈페이지에 게시된 교육자료를 확인할 수 있습니다.</p>
+      <div id="resourceLinkButtons" class="resource-link-buttons"></div>
     </section>
   </main>
 
@@ -1535,7 +1543,7 @@ window.supabaseClient = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
           <strong>등록부 조회</strong>
         </button>
         <button class="admin-menu-card" onclick="openAdminPanel('resourcesAdmin')">
-          <strong>학부모 안내자료 등록</strong>
+          <strong>학부모 교육자료 링크</strong>
         </button>
         <button class="admin-menu-card" onclick="openAdminPanel('settings')">
           <strong>설정</strong>
@@ -1578,58 +1586,23 @@ window.supabaseClient = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
     <section id="adminResources" class="admin-panel hidden">
       <button class="admin-home-btn no-print" onclick="openAdminPanel('home')">← 관리자 홈</button>
       <section class="section-card">
-        <h3 class="section-title">안내자료 등록</h3>
-        <p class="section-desc">PDF, 영상 파일 또는 YouTube 링크를 등록할 수 있습니다. 파일은 아래 영역으로 끌어다 놓아도 됩니다.</p>
+        <h3 class="section-title">학부모 교육자료 링크</h3>
+        <p class="section-desc">학교 홈페이지에 올린 교육자료 주소를 등록해 주세요. 자료명은 입력하지 않아도 되며, 학부모 화면에는 등록 순서대로 바로가기 버튼이 표시됩니다.</p>
 
-        <div class="resource-type-tabs">
-          <button class="resource-type-tab active" onclick="selectResourceType('file',this)">파일 업로드</button>
-          <button class="resource-type-tab" onclick="selectResourceType('youtube',this)">YouTube 링크</button>
+        <div class="field">
+          <label>교육자료 링크</label>
+          <input id="resourceLinkInput" type="url" inputmode="url" placeholder="https://학교홈페이지/게시물주소">
         </div>
-
-        <div class="resource-upload-grid">
-          <div class="field">
-            <label>자료명</label>
-            <input id="resourceTitleInput" placeholder="예: 학교폭력 예방교육">
-          </div>
-          <div class="field">
-            <label>담당부서</label>
-            <input id="resourceDeptInput" placeholder="예: 학생생활안전부">
-          </div>
-
-          <div id="fileUploadArea" class="field full">
-            <label>PDF 또는 영상 파일</label>
-            <div id="dropZone" class="drop-zone" onclick="document.getElementById('resourceFileInput').click()">
-              <div class="drop-zone-icon">⇧</div>
-              <strong>파일을 여기로 끌어다 놓으세요</strong>
-              <span>또는 클릭하여 파일 선택</span>
-              <small>PDF · MP4 · WebM 지원</small>
-            </div>
-            <input id="resourceFileInput" type="file" accept="application/pdf,video/mp4,video/webm" hidden>
-            <div id="selectedFileName" class="selected-file-notice hidden" aria-live="polite">
-      <span class="selected-file-check">✓</span>
-      <div>
-        <strong>파일이 첨부되었습니다.</strong>
-        <span id="selectedFileNameText"></span>
-      </div>
-    </div>
-          </div>
-
-          <div id="youtubeUploadArea" class="field full hidden">
-            <label>YouTube 링크</label>
-            <input id="resourceYoutubeInput" placeholder="https://www.youtube.com/watch?v=...">
-          </div>
-        </div>
-
         <div class="section-save-row">
-          <button class="section-save-btn" onclick="addResourceItem()">자료 등록</button>
+          <button class="section-save-btn" onclick="addResourceItem()">교육자료 링크 추가</button>
         </div>
 
         <div class="registered-resource-section">
           <div class="registered-resource-head">
-            <h4>등록된 자료</h4>
+            <h4>등록된 바로가기</h4>
             <span id="resourceCountBadge" class="resource-count-badge">0개</span>
           </div>
-          <p class="small">☰ 손잡이를 끌어서 학부모 화면에 표시되는 순서를 바꿀 수 있습니다.</p>
+          <p class="small">순서를 바꾸면 학부모 화면의 바로가기 번호도 자동으로 바뀝니다.</p>
           <div id="adminResourceList" class="resource-admin-list"></div>
         </div>
       </section>
@@ -1726,7 +1699,8 @@ window.supabaseClient = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
           <div id="layoutUploadStatus" class="layout-upload-status">아직 새 배치도를 등록하지 않았습니다.</div>
           <div id="layoutPreviewGrid" class="layout-preview-grid"></div>
 
-          <div class="section-save-row">
+          <div class="section-save-row" style="gap:8px;flex-wrap:wrap">
+            <button class="ghost" type="button" onclick="downloadAllLayoutFloors()">1~5층 모두 다운로드</button>
             <button class="ghost" type="button" onclick="clearUploadedLayout()">등록한 배치도 삭제</button>
           </div>
         </section>
@@ -2114,7 +2088,7 @@ function openAdminPanel(name){
   document.querySelectorAll('.admin-panel').forEach(p=>p.classList.add('hidden'));
   if(name==='home'){document.getElementById('adminHome').classList.remove('hidden');return;}
   if(name==='registry'){document.getElementById('adminRegistry').classList.remove('hidden');renderTeacherTable();}
-  if(name==='resourcesAdmin'){document.getElementById('adminResources').classList.remove('hidden');renderAdminResources();setTimeout(setupDropZone,0);}
+  if(name==='resourcesAdmin'){document.getElementById('adminResources').classList.remove('hidden');renderAdminResources();}
   if(name==='settings'){
     document.getElementById('adminSettings').classList.remove('hidden');
     openSettingsPanel('home');
@@ -2566,64 +2540,48 @@ async function uploadSharedFile(file,prefix='resources'){
 }
 
 async function addResourceItem(){
-  const title=document.getElementById('resourceTitleInput').value.trim();
-  const dept=document.getElementById('resourceDeptInput').value.trim();
-  if(!title){alert('자료명을 입력해 주세요.');return}
-  if(!dept){alert('담당부서를 입력해 주세요.');return}
+  const input=document.getElementById('resourceLinkInput');
+  const url=(input?.value||'').trim();
+  if(!url){alert('교육자료 링크를 입력해 주세요.');return}
+  try{ new URL(url); }catch(e){alert('http:// 또는 https://로 시작하는 올바른 링크를 입력해 주세요.');return}
   if(!activeAdminPassword){alert('관리자 로그인이 필요합니다.');return}
-
-  let payload={p_password:activeAdminPassword,p_event_year:this.getEventYear(),p_title:title,p_dept:dept,
-    p_type:selectedResourceType,p_url:null,p_embed_url:null,p_storage_path:null,p_file_name:null,p_mime:null};
-
   try{
-    if(selectedResourceType==='youtube'){
-      const url=document.getElementById('resourceYoutubeInput').value.trim();
-      const embed=getYoutubeEmbedUrl(url);
-      if(!embed){alert('올바른 YouTube 링크를 입력해 주세요.');return}
-      payload.p_url=url; payload.p_embed_url=embed;
-    }else{
-      const file=droppedResourceFile || document.getElementById('resourceFileInput').files?.[0];
-      if(!file){alert('PDF 또는 영상 파일을 선택해 주세요.');return}
-      const uploaded=await uploadSharedFile(file,'resources');
-      payload.p_type=file.type==='application/pdf'?'pdf':'video';
-      payload.p_url=uploaded.url;
-      payload.p_storage_path=uploaded.path;
-      payload.p_file_name=file.name;
-      payload.p_mime=file.type;
-    }
-    await supabaseBridge.rpc('save_parent_meeting_resource',payload);
+    const count=getResourceItems().length+1;
+    await supabaseBridge.rpc('save_parent_meeting_resource',{
+      p_password:activeAdminPassword,
+      p_event_year:supabaseBridge.getEventYear(),
+      p_title:`교육자료 바로가기(${count})`,
+      p_dept:'',
+      p_type:'link',
+      p_url:url,
+      p_embed_url:null,
+      p_storage_path:null,
+      p_file_name:null,
+      p_mime:null
+    });
     await loadSharedState();
-
-    document.getElementById('resourceTitleInput').value='';
-    document.getElementById('resourceDeptInput').value='';
-    if(document.getElementById('resourceYoutubeInput'))document.getElementById('resourceYoutubeInput').value='';
-    if(document.getElementById('resourceFileInput'))document.getElementById('resourceFileInput').value='';
-    document.getElementById('selectedFileName')?.classList.add('hidden');
-    const selectedText=document.getElementById('selectedFileNameText'); if(selectedText) selectedText.textContent='';
-    droppedResourceFile=null;
+    if(input) input.value='';
     renderAdminResources();renderPublicResources();
-    alert('안내자료를 서버에 저장했습니다.');
+    alert('교육자료 링크를 저장했습니다.');
   }catch(e){
     console.error(e);
-    alert('자료 저장 중 오류가 발생했습니다.\n'+(e?.message||e));
+    alert('링크 저장 중 오류가 발생했습니다.\n'+(e?.message||e));
   }
 }
 async function deleteResourceItem(id){
   const item=getResourceItems().find(x=>String(x.id)===String(id));
   if(!item)return;
-  if(!confirm('이 안내자료를 삭제할까요?'))return;
+  if(!confirm('이 교육자료 바로가기를 삭제할까요?'))return;
   try{
-    if(item.storage_path) await requestStorageAction('delete',item.storage_path);
     await supabaseBridge.rpc('delete_parent_meeting_resource',{
       p_password:activeAdminPassword,p_resource_id:Number(id)
     });
     await loadSharedState();
     renderAdminResources();renderPublicResources();
   }catch(e){
-    alert('자료 삭제 중 오류가 발생했습니다.\n'+(e?.message||e));
+    alert('링크 삭제 중 오류가 발생했습니다.\n'+(e?.message||e));
   }
 }
-
 
 let resourceDragIndex=null;
 function setupResourceDragSort(){
@@ -2670,14 +2628,14 @@ function renderAdminResources(){
   const wrap=document.getElementById('adminResourceList'); if(!wrap)return;
   const items=getResourceItems();
   const count=document.getElementById('resourceCountBadge'); if(count) count.textContent=`${items.length}개`;
-  if(!items.length){wrap.innerHTML='<div class="notice">등록된 안내자료가 없습니다.</div>';return}
+  if(!items.length){wrap.innerHTML='<div class="notice">등록된 교육자료 링크가 없습니다.</div>';return}
   wrap.innerHTML=items.map((x,i)=>`<div class="resource-admin-item" draggable="true" data-index="${i}">
     <div class="resource-admin-meta">
       <div class="drag-handle">☰</div>
       <div class="resource-order-no">${i+1}</div>
       <div>
-        <strong>${x.title}</strong>
-        <small>${x.dept} · ${x.type==='youtube'?'YouTube':(x.fileName||'파일')}</small>
+        <strong>${items.length===1?'교육자료 바로가기':`교육자료 바로가기(${i+1})`}</strong>
+        <span class="resource-url-text" title="${escapeHtml(x.url||'')}">${escapeHtml(x.url||'')}</span>
       </div>
     </div>
     <div class="resource-order-actions">
@@ -2740,52 +2698,17 @@ function escapeHtml(value){
 }
 
 async function renderPublicResources(){
-  const tabs=document.getElementById('resourceTabs'), panels=document.getElementById('resourcePanels');
-  if(!tabs||!panels)return;
-  const items=getResourceItems();
+  const wrap=document.getElementById('resourceLinkButtons');
+  if(!wrap)return;
+  const items=getResourceItems().filter(x=>x?.url);
   if(!items.length){
-    tabs.innerHTML='';
-    panels.innerHTML='<div class="notice">등록된 학부모 교육자료가 없습니다.</div>';
+    wrap.innerHTML='<div class="notice">등록된 학부모 교육자료가 없습니다.</div>';
     return;
   }
-  const options=items.map((x,i)=>`<option value="${i}">${i+1}. ${escapeHtml(x.title)}</option>`).join('');
-  const desktopTabs=items.map((x,i)=>`<button class="resource-tab ${i===0?'active':''}" onclick="openResourceTab(${i},this)">${i+1}. ${escapeHtml(x.title)}</button>`).join('');
-  tabs.innerHTML=`<div class="resource-tabs-desktop">${desktopTabs}</div><label class="resource-select-wrap"><span>교육자료 선택</span><select id="resourceMobileSelect" onchange="openResourceTab(Number(this.value),null)">${options}</select></label>`;
-  panels.innerHTML='';
-  for(let i=0;i<items.length;i++){
-    const x=items[i];
-    const panel=document.createElement('div');
-    panel.id=`resourcePanel${i}`;
-    panel.className=`resource-panel ${i===0?'':'hidden'}`;
-    const header=`<div style="margin-bottom:12px"><strong style="font-size:18px">${i+1}. ${x.title}</strong><div class="small">${x.dept}</div></div>`;
-    if(x.type==='youtube'){
-      const localMode=location.protocol==='file:';
-      panel.innerHTML=header+`<div class="resource-media-viewer">
-        <iframe src="${x.embedUrl}" title="${x.title}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
-      </div>
-      ${localMode?'<div class="embed-deploy-note">현재처럼 HTML 파일을 직접 연 상태(file://)에서는 YouTube가 오류 153으로 임베드 재생을 차단할 수 있습니다. Vercel처럼 https 주소로 배포하면 이 화면 안에서 재생됩니다.</div>':''}
-      <a class="resource-direct-link" href="${x.url}" target="_blank" rel="noopener">YouTube에서 열기</a>`;
-    }else{
-      const url=x.url||'';
-      if(!url){
-        panel.innerHTML=header+`<div class="resource-fallback">파일 주소를 불러오지 못했습니다.</div>`;
-      }else if(x.type==='pdf'){
-        if(useMobilePdfRenderer()){
-          const pdfTargetId=`mobilePdfPages${i}`;
-          panel.innerHTML=header+`<div id="${pdfTargetId}" class="pdf-render-wrap"><div class="notice">PDF를 불러오는 중입니다.</div></div>`;
-          panels.appendChild(panel);
-          renderPdfUrlToPages(url,pdfTargetId);
-          continue;
-        }else{
-          panel.innerHTML=header+`<div class="resource-media-viewer"><iframe src="${url}" title="${x.title}" style="width:100%;height:620px;border:0;background:#fff"></iframe></div>
-          <a class="resource-direct-link" href="${url}" target="_blank" rel="noopener">PDF 새 창에서 열기</a>`;
-        }
-      }else{
-        panel.innerHTML=header+`<div class="resource-media-viewer"><video src="${url}" controls playsinline></video></div>`;
-      }
-    }
-    panels.appendChild(panel);
-  }
+  wrap.innerHTML=items.map((x,i)=>{
+    const label=items.length===1?'교육자료 바로가기':`교육자료 바로가기(${i+1})`;
+    return `<a class="resource-link-btn" href="${escapeHtml(x.url)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+  }).join('');
 }
 
 function openTab(id,btn){
@@ -3355,10 +3278,46 @@ async function renderLayoutSettings(){
     }catch(e){
       img.src=`floor-default-${floor}.png`;
     }
-    card.append(title,img);
+    const downloadBtn=document.createElement('button');
+    downloadBtn.type='button';
+    downloadBtn.className='ghost';
+    downloadBtn.style.marginTop='8px';
+    downloadBtn.style.width='100%';
+    downloadBtn.textContent=`${floor}층 이미지 다운로드`;
+    downloadBtn.onclick=()=>downloadLayoutFloor(floor);
+    card.append(title,img,downloadBtn);
     grid.appendChild(card);
   }
 }
+
+async function downloadLayoutFloor(floor){
+  try{
+    const blob=await getLayoutFloorBlob(floor);
+    if(!blob){
+      alert(`${floor}층 배치도 이미지를 찾지 못했습니다.`);
+      return;
+    }
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download=`cheongna-floor-${floor}.png`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }catch(e){
+    console.error(e);
+    alert('배치도 이미지 다운로드 중 오류가 발생했습니다.\n'+(e?.message||e));
+  }
+}
+
+async function downloadAllLayoutFloors(){
+  for(let floor=1;floor<=5;floor++){
+    await downloadLayoutFloor(floor);
+    await new Promise(r=>setTimeout(r,250));
+  }
+}
+
 async function clearUploadedLayout(){
   if(!confirm('등록한 올해 배치도를 삭제하고 앱의 기본 배치도로 돌아갈까요?'))return;
   try{
